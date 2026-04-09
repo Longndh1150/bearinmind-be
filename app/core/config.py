@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 3333
 
+    # Auth (JWT)
+    jwt_secret_key: str = "CHANGE_ME"
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "bearinmind"
+    jwt_audience: str = "bearinmind-fe"
+    jwt_access_token_expires_minutes: int = 60
+
     # Generic LLM configuration (works with OpenAI-compatible providers)
     # Examples:
     # - OpenAI: leave `llm_base_url` empty; set `llm_api_key`, `llm_model="gpt-4o-mini"`

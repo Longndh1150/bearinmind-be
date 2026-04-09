@@ -56,6 +56,7 @@ app/
 | Async HTTP | `httpx` |
 | Tasks | Celery + Redis; Celery Beat for schedules |
 | CRM | HubSpot REST API |
+| Auth | JWT (`python-jose`) + password hashing (Argon2) |
 
 ## Commands
 
@@ -116,6 +117,35 @@ celery -A app.workers.celery_app beat -l info
 
 - Do not log API keys, tokens, or full PII from CRM payloads
 - Validate HubSpot webhooks (if added later) with signatures
+- **Auth**: Use JWT bearer tokens for frontend calls; store only `password_hash` (never raw password).
+- **Password hashing**: Prefer **Argon2id** (`argon2-cffi`) for user passwords. Never implement custom crypto.
+
+## Scaffolding added (Phase 0.5)
+
+This repository now includes a minimal, production-shaped scaffold for authentication and user management:
+
+- `app/schemas/`: Pydantic v2 models for API boundaries and LLM JSON parsing
+  - `user.py`: `UserCreate`, `UserLogin`, `UserPublic`
+  - `auth.py`: `Token`, `TokenPayload`
+  - `llm.py`: example `OpportunityExtract` schema for parsing LLM JSON output
+- `app/models/`: SQLAlchemy models
+  - `user.py`: `User` table
+- `app/services/`: business logic as **static classes**
+  - `UserService`: create/authenticate users
+  - `AuthService`: login → JWT token
+- `app/core/security.py`: password hashing + JWT encode/decode helpers
+- `app/api/routes/auth.py`: sample auth routes (`/api/v1/auth/register`, `/api/v1/auth/login`)
+
+### Quick manual test
+
+1. Run migrations:
+   - `alembic upgrade head`
+2. Start API:
+   - `uvicorn app.main:app --reload`
+3. Register:
+   - `POST /api/v1/auth/register` with JSON `{ "email": "...", "password": "...", "full_name": "..." }`
+4. Login:
+   - `POST /api/v1/auth/login` with JSON `{ "email": "...", "password": "..." }` → returns JWT
 
 ### HTTP client
 

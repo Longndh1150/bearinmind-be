@@ -58,6 +58,9 @@ uv run ci
 
 - **Liveness:** `GET http://localhost:8000/health`
 - **Readiness** (needs Docker up): `GET http://localhost:8000/api/v1/health/ready`
+- **Auth (sample):**
+  - `POST http://localhost:8000/api/v1/auth/register`
+  - `POST http://localhost:8000/api/v1/auth/login`
 - **Tests:** `pytest` (default excludes integration). With stack running: `pytest -m integration`
 - **Optional LLM smoke** (requires `LLM_API_KEY`): `python scripts/llm_smoke.py`
 
@@ -104,12 +107,23 @@ app/
 ├── api/
 │   ├── router.py
 │   └── routes/
+│       ├── auth.py
 │       └── health.py
 ├── core/
 │   └── config.py           # pydantic-settings
+│   └── security.py         # JWT + password hashing
 ├── db/
 │   ├── base.py
 │   └── session.py
+├── models/
+│   └── user.py
+├── schemas/
+│   ├── auth.py
+│   ├── llm.py
+│   └── user.py
+├── services/
+│   ├── auth_service.py
+│   └── user_service.py
 └── ai/
     └── graphs/
         └── smoke.py        # LangGraph scaffold

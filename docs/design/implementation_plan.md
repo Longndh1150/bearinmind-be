@@ -17,6 +17,7 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 | `.env.example` + `pydantic-settings` | Documented variables | Done |
 | Alembic init | Baseline migration | Done |
 | LangGraph/LangChain scaffold | LLM config, single smoke graph | Done |
+| Auth scaffold | JWT + password hashing + sample user routes | Done |
 
 **Exit criteria:** `docker compose up`, `GET /health` OK, one test LLM call in dev.
 

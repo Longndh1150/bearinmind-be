@@ -1,0 +1,28 @@
+# API
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic-settings>=2.6.0
+
+# DB
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30.0
+alembic>=1.14.0
+psycopg[binary]>=3.2.0
+
+# HTTP
+httpx>=0.28.0
+
+# AI (Phase 0: LangGraph smoke graph; optional LLM smoke via scripts/llm_smoke.py)
+langchain-core>=0.3.0
+langgraph>=0.2.0
+langchain-openai>=0.2.0
+
+# Vector DB client (Chroma server via Docker)
+chromadb>=0.5.0
+
+# Redis (Celery later; Phase 0: optional ping)
+redis>=5.2.0
+
+# Dev / test
+pytest>=8.3.0
+pytest-asyncio>=0.24.0

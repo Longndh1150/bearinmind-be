@@ -12,7 +12,9 @@ API and AI layer for **Bear In Mind**: an LLM-assisted system that matches sales
 ## Getting Started
 
 ```bash
-# Python 3.12+ recommended
+# Python version
+# - `pyproject.toml` requires Python >= 3.13
+# - If you're using `pip + venv`, make sure your `python` points to 3.13+
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
@@ -30,6 +32,28 @@ alembic upgrade head
 
 # API (dev)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Or FastAPI CLI
+fastapi dev app/main.py
+```
+
+- **Recommended: use `uv` for env + dependencies (optional)**  
+  Keep the default `venv + pip` flow above if you prefer. If you use `uv`, the typical workflow is:
+
+```bash
+# Create/refresh the environment from pyproject/uv.lock
+uv sync
+
+# Add a dependency (updates pyproject + lock)
+uv add <package>
+
+# Run commands inside the uv-managed environment
+uv run ruff check .
+uv run ruff format .
+uv run pytest
+uv run fastapi dev app/main.py
+
+# Or run the one-shot local CI
+uv run ci
 ```
 
 - **Liveness:** `GET http://localhost:8000/health`
@@ -44,7 +68,12 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `uvicorn app.main:app --reload` | Dev API server |
 | `pytest` | Unit tests (excludes `@pytest.mark.integration` by default) |
 | `pytest -m integration` | Full checks including DB/Redis/Chroma readiness |
-| `ruff check .` / `ruff format .` | Lint & format (if configured) |
+| `pytest --cov=app --cov-report=term-missing` | Tests with coverage (terminal) |
+| `pytest --cov=app --cov-report=html` | Coverage HTML report → `htmlcov/` |
+| `ruff format .` | Format code |
+| `ruff check .` | Lint |
+| `ruff check . --fix` | Auto-fix safe issues |
+| `python scripts/verify.py` | One-shot: format + lint + tests w/ coverage |
 | `mypy app` | Static typing (if configured) |
 | `docker compose up -d redis chroma` | Redis + Chroma (use local Postgres per `.env`; optional `postgres` service in compose) |
 | `alembic upgrade head` | Apply migrations |
@@ -86,7 +115,7 @@ app/
         └── smoke.py        # LangGraph scaffold
 alembic/                    # migrations
 scripts/
-    └── llm_smoke.py        # optional OpenAI smoke
+    └── llm_smoke.py        # optional OpenAI-compatible LLM smoke (OpenRouter supported)
 ```
 
 **Target (later phases):** add `models/`, `schemas/`, `services/`, `ai/agents/`, `ai/tools/`, `workers/`, `integrations/` as in [`docs/design/architecture.md`](docs/design/architecture.md).

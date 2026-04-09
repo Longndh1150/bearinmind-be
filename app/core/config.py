@@ -13,9 +13,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
 
-    database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/bearinmind"
-    )
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/bearinmind"
 
     @property
     def database_url_sync(self) -> str:

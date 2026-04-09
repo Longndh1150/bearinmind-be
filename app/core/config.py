@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 3333
 
+    # Generic LLM configuration (works with OpenAI-compatible providers)
+    # Examples:
+    # - OpenAI: leave `llm_base_url` empty; set `llm_api_key`, `llm_model="gpt-4o-mini"`
+    # - OpenRouter: set `llm_base_url="https://openrouter.ai/api/v1"`,
+    #   `llm_model="openai/gpt-4o-mini"` (or any OpenRouter model id)
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    llm_model: str = "gpt-4o-mini"
+
 
 @lru_cache
 def get_settings() -> Settings:

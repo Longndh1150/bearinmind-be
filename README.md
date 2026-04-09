@@ -35,7 +35,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - **Liveness:** `GET http://localhost:8000/health`
 - **Readiness** (needs Docker up): `GET http://localhost:8000/api/v1/health/ready`
 - **Tests:** `pytest` (default excludes integration). With stack running: `pytest -m integration`
-- **Optional LLM smoke** (requires `OPENAI_API_KEY`): `python scripts/llm_smoke.py`
+- **Optional LLM smoke** (requires `LLM_API_KEY`): `python scripts/llm_smoke.py`
 
 ## Commands
 

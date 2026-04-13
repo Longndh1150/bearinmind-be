@@ -165,6 +165,232 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HubSpotDealCreateResponse": {
+        "additionalProperties": false,
+        "description": "Result after accepting draft (HubSpot create is stubbed until integration).",
+        "properties": {
+          "hubspot_deal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HubSpot deal id when integration succeeds.",
+            "examples": [
+              "123456789"
+            ],
+            "title": "Hubspot Deal Id"
+          },
+          "message": {
+            "default": "",
+            "examples": [
+              "Deal created (stub)"
+            ],
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "title": "HubSpotDealCreateResponse",
+        "type": "object"
+      },
+      "HubSpotDealDraft": {
+        "additionalProperties": false,
+        "description": "User-submitted deal draft from the in-chat form (case 2).",
+        "properties": {
+          "dealName": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealname"
+          },
+          "dealSubOwner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealsubowner"
+          },
+          "jpSectionLead": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jpsectionlead"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "enum": [
+                  "EA",
+                  "JP",
+                  "TH",
+                  "US",
+                  "KR"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "offshoreDeliveryTeam": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offshoredeliveryteam"
+          },
+          "offshoreUnitPrice": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offshoreunitprice"
+          },
+          "onsiteDeliveryTeam": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "At most 50 entries; each string trimmed by client.",
+            "title": "Onsitedeliveryteam"
+          },
+          "onsiteOffshoreType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Onsite",
+                  "Offshore",
+                  "Onsite+Offshore"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsiteoffshoretype"
+          },
+          "onsiteUnitPrice": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsiteunitprice"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "pipeline": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "A",
+                  "B",
+                  "C1",
+                  "C2",
+                  "D",
+                  "O",
+                  "Approaching",
+                  "F"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "yearOfPipeline": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearofpipeline"
+          }
+        },
+        "title": "HubSpotDealDraft",
+        "type": "object"
+      },
       "MatchRationale": {
         "additionalProperties": false,
         "properties": {
@@ -1840,6 +2066,53 @@
         "summary": "Ready",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/hubspot/deals": {
+      "post": {
+        "description": "Accepts the same JSON shape as the frontend `DealDraft` (camelCase keys). HubSpot integration can be wired later; this endpoint validates shape and returns a stub id.",
+        "operationId": "create_deal_from_draft_api_v1_hubspot_deals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSpotDealDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotDealCreateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create HubSpot deal from form draft",
+        "tags": [
+          "hubspot"
         ]
       }
     },

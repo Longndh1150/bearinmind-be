@@ -32,7 +32,7 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 | Unit schema + seed data | Tables for divisions, experts, contacts | Not started |
 | ChromaDB indexing pipeline | Embed capability + case text | Not started |
 | Matching agent | Entity extract → retrieve → rank → format | Not started |
-| `POST /chat` | Stable JSON contract for frontend | Not started |
+| `POST /chat` | Stable JSON contract for frontend (includes `analysis_card` + `suggestions` for interactive UI) | In progress |
 | Tests | Integration test on matching path | Not started |
 
 **Exit criteria:** Frontend can drive matching from real API; response includes units + reasons + contact.
@@ -49,6 +49,11 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 | HubSpot integration module | Create/update deal | Not started |
 | CRM sync agent | Confirm → push → persist result | Not started |
 | `POST /opportunities`, `PUT /opportunities/{id}/push-crm` | OpenAPI documented | Not started |
+
+### Contract handoff note (FE alignment)
+
+- Use `docs/design/openapi.json` as the **single source of truth** for request/response shapes.
+- Export/update it via `python -m scripts.export_openapi` whenever routes/schemas change.
 
 **Exit criteria:** Demo flow: chat → save draft → confirm → deal visible in HubSpot (or mock).
 

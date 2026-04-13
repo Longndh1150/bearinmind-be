@@ -80,6 +80,22 @@ Paths are indicative; version under `/api/v1/` if needed.
 | `PUT` | `/units/{id}/capabilities` | US3 | Capability CRUD + re-embed trigger |
 | `GET` | `/notifications` | US2 | Polling list; mark read |
 
+### UI-friendly chat payloads (for frontend interactive components)
+
+The `/chat` response is expected to include **presentation-ready structures** in addition to plain text:
+
+- `analysis_card`: summary block (title + colored tags + footer hint)
+- `suggestions`: rich unit suggestion cards (match level, capability/resource tags, case studies, contact presentation hints)
+
+These are documented in OpenAPI and should be treated as part of the stable FE contract.
+
+### OpenAPI as the source of truth
+
+For cross-team alignment (FE mocking and API stability), use:
+
+- `docs/design/openapi.json` — exported from the running FastAPI app
+- `scripts/export_openapi.py` — one-shot export script
+
 ---
 
 ## 5. Background processing

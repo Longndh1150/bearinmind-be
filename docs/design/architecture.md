@@ -93,7 +93,7 @@ These are documented in OpenAPI and should be treated as part of the stable FE c
 
 For cross-team alignment (FE mocking and API stability), use:
 
-- `docs/design/openapi.json` — exported from the running FastAPI app
+- `openapi.json` (root dir) — exported from the running FastAPI app
 - `scripts/export_openapi.py` — one-shot export script
 
 ---

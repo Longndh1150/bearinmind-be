@@ -106,7 +106,12 @@ class MatchRationale(BaseModel):
 class MatchedUnit(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    unit_id: UUID
+    unit_id: str = Field(
+        min_length=1,
+        max_length=100,
+        description="Chroma / Postgres unit id (string, not necessarily UUID format).",
+        examples=["unit-001"],
+    )
     unit_name: str = Field(min_length=1, max_length=200)
     contact_name: str = Field(min_length=1, max_length=200)
     contact_email: str | None = Field(default=None, max_length=320)

@@ -52,7 +52,7 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 ### Contract handoff note (FE alignment)
 
-- Use `docs/design/openapi.json` as the **single source of truth** for request/response shapes.
+- Use `openapi.json` (root dir) as the **single source of truth** for request/response shapes.
 - Export/update it via `python -m scripts.export_openapi` whenever routes/schemas change.
 
 **Exit criteria:** Demo flow: chat → save draft → confirm → deal visible in HubSpot (or mock).

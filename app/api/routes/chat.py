@@ -45,7 +45,7 @@ def _stub_response(conv_id: UUID) -> ChatResponse:
         extracted_opportunity=None,
         matched_units=[
             MatchedUnit(
-                unit_id=uuid4(),
+                unit_id="stub-d365",
                 unit_name="(stub) D365 Division",
                 contact_name="(stub) Delivery Leader",
                 contact_email="leader@rikkeisoft.com",

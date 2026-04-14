@@ -462,7 +462,12 @@
             "$ref": "#/components/schemas/MatchRationale"
           },
           "unit_id": {
-            "format": "uuid",
+            "description": "Chroma / Postgres unit id (string, not necessarily UUID format).",
+            "examples": [
+              "unit-001"
+            ],
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Unit Id",
             "type": "string"
           },
@@ -2001,7 +2006,7 @@
     },
     "/api/v1/chat": {
       "post": {
-        "description": "US1 entrypoint. Accepts a user message and optional short history; returns assistant answer plus matched units and structured extraction (best-effort).",
+        "description": "Accepts a user message; runs entity extraction + vector search + LLM ranking. Returns assistant answer, extracted opportunity, matched units, analysis_card and suggestions for FE interactive components. Falls back to stub response when LLM_API_KEY is not set.",
         "operationId": "chat_api_v1_chat_post",
         "requestBody": {
           "content": {
@@ -2040,7 +2045,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Chat with AI assistant (matching entrypoint)",
+        "summary": "Chat with AI assistant (US1 matching entrypoint)",
         "tags": [
           "chat"
         ]

@@ -30,6 +30,9 @@ docker compose up -d redis chroma
 # Database migrations
 alembic upgrade head
 
+# Data seeding
+python -m scripts.seed_units
+
 # API (dev)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 # Or FastAPI CLI
@@ -62,7 +65,7 @@ uv run ci
   - `POST http://localhost:8000/api/v1/auth/register`
   - `POST http://localhost:8000/api/v1/auth/login`
 - **HubSpot deal form (case 2 — user submits draft JSON):** `POST http://localhost:8000/api/v1/hubspot/deals` (Bearer JWT; body = same shape as FE `DealDraft`, camelCase keys)
-- **OpenAPI (export for FE):** `python -m scripts.export_openapi` → `docs/design/openapi.json`
+- **OpenAPI (export for FE):** `python -m scripts.export_openapi` → `openapi.json` (root dir)
 - **Tests:** `pytest` (default excludes integration). With stack running: `pytest -m integration`
 - **Optional LLM smoke** (requires `LLM_API_KEY`): `python scripts/llm_smoke.py`
 

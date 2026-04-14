@@ -1,0 +1,3116 @@
+{
+  "components": {
+    "schemas": {
+      "ChatIntent": {
+        "description": "All recognized user intents, mapped to downstream flows.",
+        "enum": [
+          "find_units",
+          "save_draft",
+          "request_deal_form",
+          "update_capabilities",
+          "chitchat",
+          "clarify",
+          "unknown"
+        ],
+        "title": "ChatIntent",
+        "type": "string"
+      },
+      "ChatMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_crm_write": {
+            "default": false,
+            "description": "If true, server may propose CRM sync actions, but must still require explicit confirmation.",
+            "title": "Allow Crm Write",
+            "type": "boolean"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If provided, continues an existing conversation; otherwise server creates one.",
+            "title": "Conversation Id"
+          },
+          "history": {
+            "description": "Optional recent chat history for stateless clients; server may ignore if it stores history.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "message": {
+            "examples": [
+              "We have a D365 project for Japan retail."
+            ],
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityAnalysisCard"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional analysis summary card for FE to render above suggestions."
+          },
+          "answer": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Context analysis result for this turn: intent, language, confidence."
+          },
+          "conversation_id": {
+            "format": "uuid",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "extracted_opportunity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityExtract"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Best-effort structured extraction from user message."
+          },
+          "matched_units": {
+            "items": {
+              "$ref": "#/components/schemas/MatchedUnit"
+            },
+            "title": "Matched Units",
+            "type": "array"
+          },
+          "suggested_actions": {
+            "description": "Client-facing next actions like 'save opportunity draft', 'push to CRM', etc.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggested Actions",
+            "type": "array"
+          },
+          "suggestions": {
+            "description": "Optional rich suggestion cards for FE (interactive UI).",
+            "items": {
+              "$ref": "#/components/schemas/TeamSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "answer"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
+      "ConversationContext": {
+        "additionalProperties": false,
+        "description": "Output of the context analysis step (LLM call 0 in each chat turn).\n\nContains everything the router needs to decide which tool/flow to run.",
+        "properties": {
+          "clarification_needed": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Follow-up question for the user when the message is too vague.",
+            "title": "Clarification Needed"
+          },
+          "confidence": {
+            "examples": [
+              0.92
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/ChatIntent"
+          },
+          "language": {
+            "$ref": "#/components/schemas/DetectedLanguage"
+          },
+          "opportunity_hint": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Short summary of the opportunity described by the user, if any.",
+            "title": "Opportunity Hint"
+          },
+          "raw_message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Raw Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "language",
+          "confidence",
+          "raw_message"
+        ],
+        "title": "ConversationContext",
+        "type": "object"
+      },
+      "ConversationCreate": {
+        "additionalProperties": false,
+        "description": "Request body to explicitly create a new conversation (optional title).",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "D365 Japan retail"
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "ConversationCreate",
+        "type": "object"
+      },
+      "ConversationDetail": {
+        "additionalProperties": false,
+        "description": "Full conversation with message history.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessagePublic"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationDetail",
+        "type": "object"
+      },
+      "ConversationMessagePublic": {
+        "additionalProperties": false,
+        "description": "Single chat turn as returned by GET /chat/conversations/{id}.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at"
+        ],
+        "title": "ConversationMessagePublic",
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "additionalProperties": false,
+        "description": "Row in the conversation list (no messages).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_preview": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First 200 chars of the last user message for list preview.",
+            "title": "Last Message Preview"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationSummary",
+        "type": "object"
+      },
+      "DetectedLanguage": {
+        "enum": [
+          "vi",
+          "en",
+          "ja",
+          "other"
+        ],
+        "title": "DetectedLanguage",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HubSpotDealCreateResponse": {
+        "additionalProperties": false,
+        "description": "Result after accepting draft (HubSpot create is stubbed until integration).",
+        "properties": {
+          "hubspot_deal_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HubSpot deal id when integration succeeds.",
+            "examples": [
+              "123456789"
+            ],
+            "title": "Hubspot Deal Id"
+          },
+          "message": {
+            "default": "",
+            "examples": [
+              "Deal created (stub)"
+            ],
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "title": "HubSpotDealCreateResponse",
+        "type": "object"
+      },
+      "HubSpotDealDraft": {
+        "additionalProperties": false,
+        "description": "User-submitted deal draft from the in-chat form (case 2).",
+        "properties": {
+          "dealName": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealname"
+          },
+          "dealSubOwner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealsubowner"
+          },
+          "jpSectionLead": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jpsectionlead"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "enum": [
+                  "EA",
+                  "JP",
+                  "TH",
+                  "US",
+                  "KR"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "offshoreDeliveryTeam": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offshoredeliveryteam"
+          },
+          "offshoreUnitPrice": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offshoreunitprice"
+          },
+          "onsiteDeliveryTeam": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "At most 50 entries; each string trimmed by client.",
+            "title": "Onsitedeliveryteam"
+          },
+          "onsiteOffshoreType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Onsite",
+                  "Offshore",
+                  "Onsite+Offshore"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsiteoffshoretype"
+          },
+          "onsiteUnitPrice": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onsiteunitprice"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "pipeline": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "A",
+                  "B",
+                  "C1",
+                  "C2",
+                  "D",
+                  "O",
+                  "Approaching",
+                  "F"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "yearOfPipeline": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Yearofpipeline"
+          }
+        },
+        "title": "HubSpotDealDraft",
+        "type": "object"
+      },
+      "MatchRationale": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "examples": [
+              0.82
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "evidence": {
+            "description": "Bullet reasons supporting the match.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "summary": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary",
+          "confidence"
+        ],
+        "title": "MatchRationale",
+        "type": "object"
+      },
+      "MatchedUnit": {
+        "additionalProperties": false,
+        "properties": {
+          "contact_email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Contact Name",
+            "type": "string"
+          },
+          "fit_level": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "examples": [
+              "high"
+            ],
+            "title": "Fit Level",
+            "type": "string"
+          },
+          "rationale": {
+            "$ref": "#/components/schemas/MatchRationale"
+          },
+          "unit_id": {
+            "description": "Chroma / Postgres unit id (string, not necessarily UUID format).",
+            "examples": [
+              "unit-001"
+            ],
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "unit_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Unit Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit_id",
+          "unit_name",
+          "contact_name",
+          "fit_level",
+          "rationale"
+        ],
+        "title": "MatchedUnit",
+        "type": "object"
+      },
+      "NotificationPublic": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fit_level": {
+            "enum": [
+              "high",
+              "medium"
+            ],
+            "examples": [
+              "high"
+            ],
+            "title": "Fit Level",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_read": {
+            "default": false,
+            "title": "Is Read",
+            "type": "boolean"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "opportunity_id": {
+            "format": "uuid",
+            "title": "Opportunity Id",
+            "type": "string"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "title": {
+            "examples": [
+              "Opportunity matches your unit"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "const": "opportunity_match",
+            "default": "opportunity_match",
+            "title": "Type",
+            "type": "string"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "fit_level",
+          "opportunity_id",
+          "title",
+          "message"
+        ],
+        "title": "NotificationPublic",
+        "type": "object"
+      },
+      "OpportunityAnalysisCard": {
+        "additionalProperties": false,
+        "description": "Optional summary block above team cards (mirrors FE design).",
+        "properties": {
+          "footer_hint": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Small hint text at the bottom of analysis card.",
+            "title": "Footer Hint"
+          },
+          "tags": {
+            "description": "List of tags for quick scanning. Each tag has {label, tone}.",
+            "examples": [
+              [
+                {
+                  "label": "Microsoft Dynamics 365",
+                  "tone": "purple"
+                },
+                {
+                  "label": "Nhật Bản",
+                  "tone": "teal"
+                },
+                {
+                  "label": "Cần Senior + Proposal",
+                  "tone": "amber"
+                }
+              ]
+            ],
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "examples": [
+              "Phân tích cơ hội mới"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "OpportunityAnalysisCard",
+        "type": "object"
+      },
+      "OpportunityCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityParty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "extracted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityExtracted"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional structured fields if already extracted client-side; server may re-evaluate."
+          },
+          "source": {
+            "default": "chat",
+            "enum": [
+              "chat",
+              "hubspot",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "examples": [
+              "D365 implementation for retail client"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "OpportunityCreateRequest",
+        "type": "object"
+      },
+      "OpportunityExtract": {
+        "description": "Example schema for parsing structured JSON from an LLM.",
+        "properties": {
+          "client": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "requirements": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "OpportunityExtract",
+        "type": "object"
+      },
+      "OpportunityExtracted": {
+        "additionalProperties": false,
+        "description": "Structured attributes extracted from free text (LLM/tool assisted).",
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "$100k - $200k"
+            ],
+            "title": "Budget"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Japan"
+            ],
+            "title": "Market"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "10-15 engineers"
+            ],
+            "title": "Scale"
+          },
+          "tech_stack": {
+            "examples": [
+              [
+                "D365",
+                "Power Platform"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          }
+        },
+        "title": "OpportunityExtracted",
+        "type": "object"
+      },
+      "OpportunityParty": {
+        "additionalProperties": false,
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "OpportunityParty",
+        "type": "object"
+      },
+      "OpportunityPublic": {
+        "additionalProperties": false,
+        "properties": {
+          "client": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityParty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "extracted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityExtracted"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_official": {
+            "default": false,
+            "title": "Is Official",
+            "type": "boolean"
+          },
+          "pushed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pushed At"
+          },
+          "source_ref": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "open",
+              "won",
+              "lost",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "title",
+          "description",
+          "source_ref"
+        ],
+        "title": "OpportunityPublic",
+        "type": "object"
+      },
+      "OpportunityPushCrmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "default": false,
+            "description": "Must be true to execute CRM write.",
+            "examples": [
+              true
+            ],
+            "title": "Confirm",
+            "type": "boolean"
+          }
+        },
+        "title": "OpportunityPushCrmRequest",
+        "type": "object"
+      },
+      "OpportunityPushCrmResult": {
+        "additionalProperties": false,
+        "properties": {
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HubSpot deal id when success.",
+            "title": "External Id"
+          },
+          "message": {
+            "examples": [
+              "Pushed to HubSpot"
+            ],
+            "title": "Message",
+            "type": "string"
+          },
+          "source": {
+            "default": "hubspot",
+            "enum": [
+              "chat",
+              "hubspot",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "OpportunityPushCrmResult",
+        "type": "object"
+      },
+      "OpportunityUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityParty"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "extracted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpportunityExtracted"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "draft",
+                  "open",
+                  "won",
+                  "lost",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "OpportunityUpdateRequest",
+        "type": "object"
+      },
+      "Paginated_NotificationPublic_": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationPublic"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of matching items.",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Paginated[NotificationPublic]",
+        "type": "object"
+      },
+      "Paginated_OpportunityPublic_": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpportunityPublic"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of matching items.",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Paginated[OpportunityPublic]",
+        "type": "object"
+      },
+      "SourceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "External id if sourced from an integration (e.g. HubSpot deal id).",
+            "title": "External Id"
+          },
+          "source": {
+            "description": "Where this record came from.",
+            "enum": [
+              "chat",
+              "hubspot",
+              "manual"
+            ],
+            "examples": [
+              "chat"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "SourceRef",
+        "type": "object"
+      },
+      "TeamSuggestion": {
+        "additionalProperties": false,
+        "description": "Rich suggestion card payload to render interactive UI on FE.",
+        "properties": {
+          "capability_tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Styled capability/resource tags: each tag has {label, tone}.",
+            "examples": [
+              [
+                {
+                  "label": "3 Senior",
+                  "tone": "teal"
+                },
+                {
+                  "label": "Có Senior chuyên sâu",
+                  "tone": "success"
+                }
+              ]
+            ],
+            "title": "Capability Tags"
+          },
+          "case_studies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Case Studies",
+            "type": "array"
+          },
+          "contact": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Contact",
+            "type": "string"
+          },
+          "contact_role": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "SL",
+              "DL"
+            ],
+            "title": "Contact Role"
+          },
+          "contact_short_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "ThangLB"
+            ],
+            "title": "Contact Short Name"
+          },
+          "match_level": {
+            "enum": [
+              "High",
+              "Medium"
+            ],
+            "title": "Match Level",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "suggestion_rank": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Đề xuất 1"
+            ],
+            "title": "Suggestion Rank"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "enum": [
+                  "primary",
+                  "secondary"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FE styling hint.",
+            "examples": [
+              "primary"
+            ],
+            "title": "Variant"
+          }
+        },
+        "required": [
+          "name",
+          "match_level",
+          "contact"
+        ],
+        "title": "TeamSuggestion",
+        "type": "object"
+      },
+      "Token": {
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token"
+        ],
+        "title": "Token",
+        "type": "object"
+      },
+      "UnitCapabilities": {
+        "additionalProperties": false,
+        "properties": {
+          "case_studies": {
+            "items": {
+              "$ref": "#/components/schemas/UnitCaseStudy"
+            },
+            "title": "Case Studies",
+            "type": "array"
+          },
+          "experts": {
+            "items": {
+              "$ref": "#/components/schemas/UnitExpert"
+            },
+            "title": "Experts",
+            "type": "array"
+          },
+          "hrm_synced_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hrm Synced At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "salekit_synced_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salekit Synced At"
+          },
+          "tech_stack": {
+            "examples": [
+              [
+                "Java",
+                "Spring",
+                "AWS"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          }
+        },
+        "title": "UnitCapabilities",
+        "type": "object"
+      },
+      "UnitCapabilitiesUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "case_studies": {
+            "items": {
+              "$ref": "#/components/schemas/UnitCaseStudy"
+            },
+            "title": "Case Studies",
+            "type": "array"
+          },
+          "experts": {
+            "items": {
+              "$ref": "#/components/schemas/UnitExpert"
+            },
+            "title": "Experts",
+            "type": "array"
+          },
+          "hrm_synced_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hrm Synced At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "salekit_synced_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salekit Synced At"
+          },
+          "tech_stack": {
+            "examples": [
+              [
+                "Java",
+                "Spring",
+                "AWS"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          }
+        },
+        "title": "UnitCapabilitiesUpdate",
+        "type": "object"
+      },
+      "UnitCaseStudy": {
+        "additionalProperties": false,
+        "properties": {
+          "domain": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "UnitCaseStudy",
+        "type": "object"
+      },
+      "UnitContact": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "leader@rikkeisoft.com"
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "examples": [
+              "Nguyen Van A"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "+84 9xx xxx xxx"
+            ],
+            "title": "Phone"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Delivery Leader"
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UnitContact",
+        "type": "object"
+      },
+      "UnitExpert": {
+        "additionalProperties": false,
+        "properties": {
+          "focus_areas": {
+            "examples": [
+              [
+                "Azure",
+                "DevOps"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Focus Areas",
+            "type": "array"
+          },
+          "name": {
+            "examples": [
+              "Sin"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "profile_url": {
+            "anyOf": [
+              {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Url"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UnitExpert",
+        "type": "object"
+      },
+      "UnitPublic": {
+        "additionalProperties": false,
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/UnitCapabilities"
+          },
+          "code": {
+            "examples": [
+              "D365",
+              "AI",
+              "JAPAN"
+            ],
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/UnitContact"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Rikkei D365 Division"
+            ],
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "code",
+          "name",
+          "contact",
+          "capabilities"
+        ],
+        "title": "UnitPublic",
+        "type": "object"
+      },
+      "UserCreate": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserCreate",
+        "type": "object"
+      },
+      "UserLogin": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "UserLogin",
+        "type": "object"
+      },
+      "UserPublic": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "is_active",
+          "created_at"
+        ],
+        "title": "UserPublic",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Bear In Mind API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/chat": {
+      "post": {
+        "description": "Intent-aware chat endpoint. Step 0: context analysis (intent + language detection). Step 1+: route to the appropriate flow based on intent — find_units → matching pipeline, save_draft → opportunity service, request_deal_form → show HubSpot form, update_capabilities → US3 agent, chitchat/clarify → lightweight reply. Persists session context (language, last_intent) on the conversation. Falls back to stub when LLM_API_KEY is not set.",
+        "operationId": "chat_api_v1_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Chat with AI assistant",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations": {
+      "get": {
+        "description": "Returns conversations ordered by most recently updated, newest first.",
+        "operationId": "list_conversations_api_v1_chat_conversations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response List Conversations Api V1 Chat Conversations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List conversations for the current user",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "description": "Explicitly create an empty conversation. Returns its ID for use in POST /chat.",
+        "operationId": "create_conversation_api_v1_chat_conversations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a new conversation",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{conversation_id}": {
+      "get": {
+        "description": "Returns the full message history for a conversation. Only the owner can access.",
+        "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get conversation history",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ready Api V1 Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/hubspot/deals": {
+      "post": {
+        "description": "Accepts the same JSON shape as the frontend `DealDraft` (camelCase keys). HubSpot integration can be wired later; this endpoint validates shape and returns a stub id.",
+        "operationId": "create_deal_from_draft_api_v1_hubspot_deals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSpotDealDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotDealCreateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create HubSpot deal from form draft",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "description": "US2: FE polls this endpoint; later can evolve to push/stream.",
+        "operationId": "list_notifications_api_v1_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unread_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_NotificationPublic_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List notifications (polling)",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "mark_read_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mark a notification as read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/opportunities": {
+      "get": {
+        "description": "US6: returns a consolidated list; v1 can start with local DB only.",
+        "operationId": "list_opportunities_api_v1_opportunities_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unit_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_OpportunityPublic_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List opportunities (multi-source later)",
+        "tags": [
+          "opportunities"
+        ]
+      },
+      "post": {
+        "description": "US5: persist an opportunity captured from chat or manual entry.",
+        "operationId": "create_opportunity_api_v1_opportunities_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create an opportunity (draft/unofficial supported)",
+        "tags": [
+          "opportunities"
+        ]
+      }
+    },
+    "/api/v1/opportunities/{opportunity_id}": {
+      "get": {
+        "operationId": "get_opportunity_api_v1_opportunities__opportunity_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Opportunity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get opportunity by id",
+        "tags": [
+          "opportunities"
+        ]
+      },
+      "put": {
+        "operationId": "update_opportunity_api_v1_opportunities__opportunity_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Opportunity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update an opportunity",
+        "tags": [
+          "opportunities"
+        ]
+      }
+    },
+    "/api/v1/opportunities/{opportunity_id}/push-crm": {
+      "put": {
+        "description": "US5: requires explicit confirmation via request body.",
+        "operationId": "push_opportunity_to_crm_api_v1_opportunities__opportunity_id__push_crm_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Opportunity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityPushCrmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPushCrmResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Push an opportunity to CRM (HubSpot)",
+        "tags": [
+          "opportunities"
+        ]
+      }
+    },
+    "/api/v1/units": {
+      "get": {
+        "description": "Useful for FE dropdowns and admin screens.",
+        "operationId": "list_units_api_v1_units_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UnitPublic"
+                  },
+                  "title": "Response List Units Api V1 Units Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List units",
+        "tags": [
+          "units"
+        ]
+      }
+    },
+    "/api/v1/units/{unit_id}": {
+      "get": {
+        "operationId": "get_unit_api_v1_units__unit_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get unit by id",
+        "tags": [
+          "units"
+        ]
+      }
+    },
+    "/api/v1/units/{unit_id}/capabilities": {
+      "put": {
+        "description": "US3: authenticated unit lead updates capability info; triggers re-embed later.",
+        "operationId": "update_capabilities_api_v1_units__unit_id__capabilities_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitCapabilitiesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update unit capabilities",
+        "tags": [
+          "units"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "liveness_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness"
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@ Create Date: 2026-04-14
 
 """
 
+import sqlalchemy as sa
 from collections.abc import Sequence
 
 from sqlalchemy.dialects import postgresql
@@ -21,7 +22,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "conversations",
-        op.Column("session_meta", postgresql.JSONB(astext_type=None), nullable=True),
+        sa.Column("session_meta", postgresql.JSONB(astext_type=None), nullable=True),
     )
 
 

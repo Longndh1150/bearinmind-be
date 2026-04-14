@@ -31,7 +31,7 @@ def sample_vector_results() -> list[VectorSearchResult]:
             unit_id="unit-002",
             unit_name="Rikkei AI & Data",
             document="Unit: Rikkei AI & Data. Tech: Python, LLM. Case Studies: Internal AI system.",
-            metadata={"unit_id": "unit-002", "unit_name": "Rikkei AI & Data", "contact_name": "MinhLN"},
+            metadata={"unit_id": "unit-002", "unit_name": "Rikkei AI & Data", "contact_name": "HungDT"},
         ),
     ]
 

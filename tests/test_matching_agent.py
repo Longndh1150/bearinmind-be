@@ -147,11 +147,11 @@ def test_score_and_rank_handles_llm_exception(sample_opportunity, sample_vector_
     assert suggestions == []
 
 
-def test_score_and_rank_unknown_unit_id_falls_back(sample_opportunity, sample_vector_results):
-    """LLM hallucinated a unit_id not in vector results — should still return a result."""
+def test_score_and_rank_unknown_unit_id_is_discarded(sample_opportunity, sample_vector_results):
+    """LLM hallucinated a unit_id not in vector results — item must be discarded, not trusted."""
     llm_payload = [
         {
-            "unit_id": "unit-999",  # not in sample_vector_results
+            "unit_id": "unit-999",  # not in sample_vector_results — hallucinated by LLM
             "fit_level": "medium",
             "rationale": {"summary": "maybe", "confidence": 0.4, "evidence": []},
         }
@@ -160,7 +160,8 @@ def test_score_and_rank_unknown_unit_id_falls_back(sample_opportunity, sample_ve
     mock_client.chat.completions.create.return_value = _make_llm_response(llm_payload)
 
     with patch("app.ai.agents.matching._llm_client", return_value=mock_client):
-        matched, _ = score_and_rank(sample_opportunity, sample_vector_results)
+        matched, suggestions = score_and_rank(sample_opportunity, sample_vector_results)
 
-    assert matched[0].unit_name == "Unknown Unit"
-    assert matched[0].contact_name == "Contact"
+    # Hallucinated IDs must be silently dropped — never trusted
+    assert matched == []
+    assert suggestions == []

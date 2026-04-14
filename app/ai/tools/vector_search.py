@@ -36,20 +36,31 @@ def index_unit(
     unit_name: str,
     tech_stack: list[str],
     case_studies: str,
+    case_study_titles: list[str] | None = None,
     contact_name: str = "",
+    contact_email: str = "",
 ) -> None:
     """Embed & upsert a unit's capability document into Chroma.
 
     Called after Unit is created/updated in Postgres.
+    case_study_titles: short display titles for each case study (for FE cards).
     """
     document = (
         f"Unit: {unit_name}. "
         f"Tech: {', '.join(tech_stack)}. "
         f"Case Studies: {case_studies}"
     )
-    metadata: dict[str, str] = {"unit_id": unit_id, "unit_name": unit_name}
+    metadata: dict[str, str | list] = {
+        "unit_id": unit_id,
+        "unit_name": unit_name,
+        # Chroma stores lists as JSON strings — we join with | for easy split
+        "tech_stack": "|".join(tech_stack),
+        "case_study_titles": "|".join(case_study_titles or []),
+    }
     if contact_name:
         metadata["contact_name"] = contact_name
+    if contact_email:
+        metadata["contact_email"] = contact_email
 
     collection = _get_collection()
     collection.upsert(documents=[document], metadatas=[metadata], ids=[unit_id])

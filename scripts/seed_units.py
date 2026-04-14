@@ -31,6 +31,7 @@ def seed() -> None:
             "Deployed D365 CRM for a retail chain in Tokyo, Japan. "
             "Implemented D365 Business Central for a manufacturing client in APAC."
         ),
+        case_study_titles=["D365 CRM — Tokyo Retail", "D365 Business Central — APAC Mfg"],
         contact_name="ThangLB",
     )
 
@@ -42,6 +43,7 @@ def seed() -> None:
             "Built an AI-powered matching system for internal operations. "
             "Developed a data pipeline and analytics dashboard for a fintech client."
         ),
+        case_study_titles=["AI Matching System", "Fintech Analytics Dashboard"],
         contact_name="MinhLN",
     )
 
@@ -53,6 +55,7 @@ def seed() -> None:
             "Delivered a large-scale e-commerce backend for a Japanese retailer. "
             "Migrated a legacy monolith to microservices for a logistics company."
         ),
+        case_study_titles=["E-commerce Backend — Japan Retailer", "Microservices Migration — Logistics"],
         contact_name="HungNT",
     )
 

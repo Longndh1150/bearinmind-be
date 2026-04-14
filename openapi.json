@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "ChatIntent": {
+        "description": "All recognized user intents, mapped to downstream flows.",
+        "enum": [
+          "find_units",
+          "save_draft",
+          "request_deal_form",
+          "update_capabilities",
+          "chitchat",
+          "clarify",
+          "unknown"
+        ],
+        "title": "ChatIntent",
+        "type": "string"
+      },
       "ChatMessage": {
         "additionalProperties": false,
         "properties": {
@@ -105,6 +119,17 @@
             "title": "Answer",
             "type": "string"
           },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Context analysis result for this turn: intent, language, confidence."
+          },
           "conversation_id": {
             "format": "uuid",
             "title": "Conversation Id",
@@ -151,6 +176,237 @@
         ],
         "title": "ChatResponse",
         "type": "object"
+      },
+      "ConversationContext": {
+        "additionalProperties": false,
+        "description": "Output of the context analysis step (LLM call 0 in each chat turn).\n\nContains everything the router needs to decide which tool/flow to run.",
+        "properties": {
+          "clarification_needed": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Follow-up question for the user when the message is too vague.",
+            "title": "Clarification Needed"
+          },
+          "confidence": {
+            "examples": [
+              0.92
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/ChatIntent"
+          },
+          "language": {
+            "$ref": "#/components/schemas/DetectedLanguage"
+          },
+          "opportunity_hint": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Short summary of the opportunity described by the user, if any.",
+            "title": "Opportunity Hint"
+          },
+          "raw_message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Raw Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "language",
+          "confidence",
+          "raw_message"
+        ],
+        "title": "ConversationContext",
+        "type": "object"
+      },
+      "ConversationCreate": {
+        "additionalProperties": false,
+        "description": "Request body to explicitly create a new conversation (optional title).",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "D365 Japan retail"
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "ConversationCreate",
+        "type": "object"
+      },
+      "ConversationDetail": {
+        "additionalProperties": false,
+        "description": "Full conversation with message history.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessagePublic"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationDetail",
+        "type": "object"
+      },
+      "ConversationMessagePublic": {
+        "additionalProperties": false,
+        "description": "Single chat turn as returned by GET /chat/conversations/{id}.",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at"
+        ],
+        "title": "ConversationMessagePublic",
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "additionalProperties": false,
+        "description": "Row in the conversation list (no messages).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_preview": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First 200 chars of the last user message for list preview.",
+            "title": "Last Message Preview"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationSummary",
+        "type": "object"
+      },
+      "DetectedLanguage": {
+        "enum": [
+          "vi",
+          "en",
+          "ja",
+          "other"
+        ],
+        "title": "DetectedLanguage",
+        "type": "string"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2006,7 +2262,7 @@
     },
     "/api/v1/chat": {
       "post": {
-        "description": "Accepts a user message; runs entity extraction + vector search + LLM ranking. Returns assistant answer, extracted opportunity, matched units, analysis_card and suggestions for FE interactive components. Falls back to stub response when LLM_API_KEY is not set.",
+        "description": "Intent-aware chat endpoint. Step 0: context analysis (intent + language detection). Step 1+: route to the appropriate flow based on intent — find_units → matching pipeline, save_draft → opportunity service, request_deal_form → show HubSpot form, update_capabilities → US3 agent, chitchat/clarify → lightweight reply. Persists session context (language, last_intent) on the conversation. Falls back to stub when LLM_API_KEY is not set.",
         "operationId": "chat_api_v1_chat_post",
         "requestBody": {
           "content": {
@@ -2045,7 +2301,132 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Chat with AI assistant (US1 matching entrypoint)",
+        "summary": "Chat with AI assistant",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations": {
+      "get": {
+        "description": "Returns conversations ordered by most recently updated, newest first.",
+        "operationId": "list_conversations_api_v1_chat_conversations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response List Conversations Api V1 Chat Conversations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List conversations for the current user",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "description": "Explicitly create an empty conversation. Returns its ID for use in POST /chat.",
+        "operationId": "create_conversation_api_v1_chat_conversations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a new conversation",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{conversation_id}": {
+      "get": {
+        "description": "Returns the full message history for a conversation. Only the owner can access.",
+        "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get conversation history",
         "tags": [
           "chat"
         ]

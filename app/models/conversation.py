@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +24,12 @@ class Conversation(Base):
         nullable=True,
         index=True,
     )
+
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    # Persisted context for the session: language, last_intent, draft_id, etc.
+    # Stored as JSONB so it can evolve without schema migrations.
+    session_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

@@ -6,7 +6,57 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.context import ConversationContext
 from app.schemas.llm import OpportunityExtract
+
+# ── Conversation list/detail schemas ──────────────────────────────────────────
+
+
+class ConversationCreate(BaseModel):
+    """Request body to explicitly create a new conversation (optional title)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, max_length=200, examples=["D365 Japan retail"])
+
+
+class ConversationSummary(BaseModel):
+    """Row in the conversation list (no messages)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
+    last_message_preview: str | None = Field(
+        default=None,
+        max_length=200,
+        description="First 200 chars of the last user message for list preview.",
+    )
+
+
+class ConversationMessagePublic(BaseModel):
+    """Single chat turn as returned by GET /chat/conversations/{id}."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    role: Literal["user", "assistant", "tool"]
+    content: str
+    created_at: datetime
+
+
+class ConversationDetail(BaseModel):
+    """Full conversation with message history."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
+    messages: list[ConversationMessagePublic] = Field(default_factory=list)
 
 ChatRole = Literal["user", "assistant", "tool"]
 AnalysisTagTone = Literal["purple", "teal", "amber"]
@@ -144,6 +194,13 @@ class ChatResponse(BaseModel):
         description="Client-facing next actions like 'save opportunity draft', 'push to CRM', etc.",
     )
 
+    # Optional: resolved context for this turn (intent, language, confidence).
+    # Useful for FE debugging and for adapting UI per intent.
+    context: ConversationContext | None = Field(
+        default=None,
+        description="Context analysis result for this turn: intent, language, confidence.",
+    )
+
 
 __all__ = [
     "AnalysisTagTone",
@@ -152,10 +209,15 @@ __all__ = [
     "ChatRequest",
     "ChatResponse",
     "ChatRole",
+    "ConversationCreate",
+    "ConversationDetail",
+    "ConversationMessagePublic",
+    "ConversationSummary",
     "MatchLevel",
     "MatchedUnit",
     "MatchRationale",
     "OpportunityAnalysisCard",
     "TeamSuggestion",
+    "ConversationContext",
 ]
 

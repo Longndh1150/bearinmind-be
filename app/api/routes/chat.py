@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, status
 
+from app.ai.agents.matching import run_matching
 from app.api.deps import require_active_user
+from app.core.config import settings
 from app.models.user import User
 from app.schemas.chat import (
     ChatRequest,
@@ -15,25 +18,30 @@ from app.schemas.chat import (
     TeamSuggestion,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+_FIT_TONE = {"High": "teal", "Medium": "amber"}
 
-@router.post(
-    "",
-    response_model=ChatResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Chat with AI assistant (matching entrypoint)",
-    description=(
-        "US1 entrypoint. Accepts a user message and optional short history; "
-        "returns assistant answer plus matched units and structured extraction (best-effort)."
-    ),
-)
-async def chat(payload: ChatRequest, _: User = Depends(require_active_user)) -> ChatResponse:
-    # Stubbed response shape for FE contract + OpenAPI stability.
-    conv_id = payload.conversation_id or uuid4()
+
+def _build_analysis_card(
+    extracted_title: str | None,
+    suggestions: list[TeamSuggestion],
+) -> OpportunityAnalysisCard:
+    tags: list[dict[str, str]] = []
+    if extracted_title:
+        tags.append({"label": extracted_title, "tone": "purple"})
+    count = len(suggestions)
+    hint = f"Đã tìm thấy {count} đề xuất phù hợp." if count else "Chưa tìm thấy đơn vị phù hợp."
+    return OpportunityAnalysisCard(title="Phân tích cơ hội", tags=tags, footer_hint=hint)
+
+
+def _stub_response(conv_id: UUID) -> ChatResponse:
+    """Fallback when LLM is not configured (no LLM_API_KEY)."""
     return ChatResponse(
-        conversation_id=UUID(str(conv_id)),
-        answer="(stub) I understood your opportunity. Here are the best matching units.",
+        conversation_id=conv_id,
+        answer="(stub) Mô tả cơ hội của bạn (platform, thị trường, timeline) để AI tìm đơn vị phù hợp.",
         extracted_opportunity=None,
         matched_units=[
             MatchedUnit(
@@ -43,55 +51,80 @@ async def chat(payload: ChatRequest, _: User = Depends(require_active_user)) -> 
                 contact_email="leader@rikkeisoft.com",
                 fit_level="high",
                 rationale=MatchRationale(
-                    summary="(stub) Strong match based on D365 experience and Japan market delivery.",
-                    evidence=["(stub) Case study: Retail D365 rollout", "(stub) Tech: D365 + Power Platform"],
+                    summary="(stub) Strong match based on D365 experience.",
+                    evidence=["(stub) Case study: Retail D365 rollout"],
                     confidence=0.82,
                 ),
             )
         ],
         analysis_card=OpportunityAnalysisCard(
             title="(stub) Phân tích cơ hội mới",
-            tags=[
-                {"label": "Microsoft Dynamics 365", "tone": "purple"},
-                {"label": "Nhật Bản", "tone": "teal"},
-                {"label": "Cần Senior + Proposal", "tone": "amber"},
-            ],
-            footer_hint="(stub) Đã tìm thấy 2 đề xuất phù hợp — xem chi tiết bên dưới.",
+            tags=[{"label": "stub mode — set LLM_API_KEY", "tone": "amber"}],
+            footer_hint="Running in stub mode. Set LLM_API_KEY in .env to enable real matching.",
         ),
         suggestions=[
             TeamSuggestion(
                 name="(stub) Đơn vị DN1",
                 match_level="High",
-                tech_stack=[],
-                case_studies=["D365 CRM", "D365 Business Central (BC)"],
+                tech_stack=["D365", "Power Platform"],
+                case_studies=["D365 CRM", "D365 Business Central"],
                 contact="ThangLB — Section Lead",
                 suggestion_rank="Đề xuất 1",
-                summary="(stub) Có kinh nghiệm triển khai D365 tại Nhật và APAC; đủ Senior để đảm nhận discovery + proposal.",
+                summary="(stub) Có kinh nghiệm triển khai D365 tại Nhật và APAC.",
                 contact_short_name="ThangLB",
                 contact_role="SL",
-                capability_tags=[
-                    {"label": "3 Senior", "tone": "teal"},
-                    {"label": "Có Senior chuyên sâu", "tone": "success"},
-                ],
+                capability_tags=[{"label": "3 Senior", "tone": "teal"}],
                 variant="primary",
-            ),
-            TeamSuggestion(
-                name="(stub) Đơn vị D5",
-                match_level="Medium",
-                tech_stack=[],
-                case_studies=["D365 FO", "Integration hub"],
-                contact="MinhLN — Delivery Lead",
-                suggestion_rank="Đề xuất 2",
-                summary="(stub) Quy mô lớn, nhiều dự án tích hợp; cần bổ sung Senior chuyên sâu D365 cho giai đoạn đầu.",
-                contact_short_name="MinhLN",
-                contact_role="DL",
-                capability_tags=[
-                    {"label": "10+ members", "tone": "gray"},
-                    {"label": "Chưa có Senior chuyên sâu", "tone": "warning"},
-                ],
-                variant="secondary",
             ),
         ],
         suggested_actions=["save_opportunity_draft"],
     )
 
+
+@router.post(
+    "",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Chat with AI assistant (US1 matching entrypoint)",
+    description=(
+        "Accepts a user message; runs entity extraction + vector search + LLM ranking. "
+        "Returns assistant answer, extracted opportunity, matched units, "
+        "analysis_card and suggestions for FE interactive components. "
+        "Falls back to stub response when LLM_API_KEY is not set."
+    ),
+)
+async def chat(
+    payload: ChatRequest,
+    current_user: User = Depends(require_active_user),
+) -> ChatResponse:
+    conv_id = payload.conversation_id or uuid4()
+
+    # Skip real LLM call when key is not configured (dev/test without API key)
+    if not settings.llm_api_key:
+        logger.debug("LLM_API_KEY not set — returning stub chat response")
+        return _stub_response(UUID(str(conv_id)))
+
+    try:
+        extracted, matched_units, suggestions = run_matching(payload.message)
+    except Exception:
+        logger.exception("Matching agent failed; falling back to stub")
+        return _stub_response(UUID(str(conv_id)))
+
+    unit_count = len(matched_units)
+    answer = (
+        f"Tôi đã phân tích cơ hội và tìm thấy {unit_count} đơn vị phù hợp."
+        if unit_count
+        else "Tôi chưa tìm thấy đơn vị phù hợp. Hãy cung cấp thêm thông tin về công nghệ và thị trường."
+    )
+
+    analysis_card = _build_analysis_card(extracted.title, suggestions)
+
+    return ChatResponse(
+        conversation_id=UUID(str(conv_id)),
+        answer=answer,
+        extracted_opportunity=extracted,
+        matched_units=matched_units,
+        analysis_card=analysis_card,
+        suggestions=suggestions,
+        suggested_actions=["save_opportunity_draft"] if unit_count else [],
+    )

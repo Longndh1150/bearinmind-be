@@ -1,7 +1,9 @@
-"""Unit tests for POST /api/v1/chat — intent-aware routing.
+"""Unit tests for chat API — intent-aware routing.
 
-Tests run without a DB or LLM key — stubs out auth dep + DB session +
-analyze_context + matching agent.
+- POST /api/v1/chat — new conversation + first message (`first_message`)
+- POST /api/v1/chat/{id} — continue conversation (`message`)
+
+Tests stub auth, DB session, analyze_context, matching, and title generation.
 """
 
 from __future__ import annotations
@@ -147,7 +149,8 @@ def client_with_context(intent: ChatIntent = ChatIntent.find_units):
 
     app.dependency_overrides[require_active_user] = _auth_override
     app.dependency_overrides[get_session] = _session_override()
-    yield TestClient(app)
+    with patch("app.api.routes.chat.generate_title", return_value="Test Title"):
+        yield TestClient(app)
     app.dependency_overrides.clear()
 
 
@@ -155,7 +158,8 @@ def client_with_context(intent: ChatIntent = ChatIntent.find_units):
 
 
 def test_chat_stub_response_when_no_llm_key(client_no_key):
-    r = client_no_key.post("/api/v1/chat", json={"message": "D365 Japan retail"})
+    # New contract: POST /chat creates conversation and processes first_message
+    r = client_no_key.post("/api/v1/chat", json={"first_message": "D365 Japan retail"})
     assert r.status_code == 200
     body = r.json()
     assert "conversation_id" in body
@@ -166,24 +170,26 @@ def test_chat_stub_response_when_no_llm_key(client_no_key):
 
 def test_chat_requires_auth():
     c = TestClient(app, raise_server_exceptions=False)
-    r = c.post("/api/v1/chat", json={"message": "hello"})
+    r = c.post("/api/v1/chat", json={"first_message": "hello"})
     assert r.status_code == 401
 
 
 def test_chat_reuses_conversation_id(client_no_key):
     fixed_id = str(_FAKE_CONV_ID)
-    r = client_no_key.post("/api/v1/chat", json={"message": "test", "conversation_id": fixed_id})
+    # Existing conversation: POST /chat/{conversation_id}
+    r = client_no_key.post(f"/api/v1/chat/{fixed_id}", json={"message": "test"})
     assert r.status_code == 200
     assert r.json()["conversation_id"] == fixed_id
 
 
 def test_chat_empty_message_rejected(client_no_key):
-    r = client_no_key.post("/api/v1/chat", json={"message": ""})
+    # First message empty rejected
+    r = client_no_key.post("/api/v1/chat", json={"first_message": ""})
     assert r.status_code == 422
 
 
 def test_chat_response_shape(client_no_key):
-    r = client_no_key.post("/api/v1/chat", json={"message": "some opportunity"})
+    r = client_no_key.post("/api/v1/chat", json={"first_message": "some opportunity"})
     body = r.json()
     required_keys = {"conversation_id", "answer", "matched_units", "suggestions", "analysis_card", "suggested_actions"}
     assert required_keys.issubset(body.keys())
@@ -204,7 +210,7 @@ def test_chat_intent_find_units_calls_matching(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "D365 Japan retail"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "D365 Japan retail"})
 
     assert r.status_code == 200
     body = r.json()
@@ -235,7 +241,7 @@ def test_chat_intent_find_units_language_passed_to_matching(client_with_context)
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        client_with_context.post("/api/v1/chat", json={"message": "Azure project"})
+        client_with_context.post("/api/v1/chat", json={"first_message": "Azure project"})
 
     mock_run.assert_called_once()
     call_kwargs = mock_run.call_args.kwargs
@@ -252,7 +258,7 @@ def test_chat_intent_chitchat_no_matching(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "Xin chào!"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "Xin chào!"})
 
     mock_run.assert_not_called()
     body = r.json()
@@ -271,7 +277,7 @@ def test_chat_intent_clarify_returns_question(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "help"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "help"})
 
     mock_run.assert_not_called()
     body = r.json()
@@ -289,7 +295,7 @@ def test_chat_intent_request_deal_form(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "tạo deal HubSpot"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "tạo deal HubSpot"})
 
     mock_run.assert_not_called()
     body = r.json()
@@ -306,7 +312,7 @@ def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "???"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "???"})
 
     assert r.status_code == 200
     body = r.json()
@@ -320,7 +326,7 @@ def test_chat_context_analysis_failure_falls_back_to_stub(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "anything"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "anything"})
 
     assert r.status_code == 200
     body = r.json()
@@ -337,7 +343,7 @@ def test_chat_matching_exception_falls_back_to_stub(client_with_context):
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        r = client_with_context.post("/api/v1/chat", json={"message": "anything"})
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "anything"})
 
     assert r.status_code == 200
     body = r.json()
@@ -354,15 +360,12 @@ def test_create_conversation():
     app.dependency_overrides[get_session] = _session_override()
     try:
         c = TestClient(app)
-        r = c.post(
-            "/api/v1/chat/conversations",
-            json={"first_message": "We have a D365 project for Japan retail."},
-        )
-        assert r.status_code == 201
+        # New contract: POST /chat creates conversation + first turn
+        r = c.post("/api/v1/chat", json={"first_message": "We have a D365 project for Japan retail."})
+        assert r.status_code == 200
         body = r.json()
-        assert "id" in body
-        assert "created_at" in body
-        assert body["title"]  # title should be generated (or fallback)
+        assert "conversation_id" in body
+        assert body["answer"]
     finally:
         app.dependency_overrides.clear()
 
@@ -374,7 +377,7 @@ def test_list_conversations():
     app.dependency_overrides[get_session] = _session_override()
     try:
         c = TestClient(app)
-        r = c.get("/api/v1/chat/conversations")
+        r = c.get("/api/v1/chat")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
     finally:
@@ -388,7 +391,7 @@ def test_get_conversation_history():
     app.dependency_overrides[get_session] = _session_override(_FAKE_CONV_ID)
     try:
         c = TestClient(app)
-        r = c.get(f"/api/v1/chat/conversations/{_FAKE_CONV_ID}")
+        r = c.get(f"/api/v1/chat/{_FAKE_CONV_ID}")
         assert r.status_code == 200
         body = r.json()
         assert body["id"] == str(_FAKE_CONV_ID)

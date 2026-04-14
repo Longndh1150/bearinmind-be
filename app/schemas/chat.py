@@ -47,7 +47,7 @@ class ConversationSummary(BaseModel):
 
 
 class ConversationMessagePublic(BaseModel):
-    """Single chat turn as returned by GET /chat/conversations/{id}."""
+    """Single chat turn as returned by GET /chat/{conversation_id}."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -138,20 +138,17 @@ class TeamSuggestion(BaseModel):
     )
 
 
-class ChatRequest(BaseModel):
+class ChatMessageRequest(BaseModel):
+    """Body for POST /chat/{conversation_id} — send a new user message in an existing conversation."""
+
     model_config = ConfigDict(extra="forbid")
 
-    conversation_id: UUID | None = Field(
-        default=None,
-        description="If provided, continues an existing conversation; otherwise server creates one.",
-    )
     message: str = Field(min_length=1, max_length=20_000, examples=["We have a D365 project for Japan retail."])
     history: list[ChatMessage] = Field(
         default_factory=list,
         description="Optional recent chat history for stateless clients; server may ignore if it stores history.",
     )
 
-    # Controls
     allow_crm_write: bool = Field(
         default=False,
         description="If true, server may propose CRM sync actions, but must still require explicit confirmation.",
@@ -219,7 +216,7 @@ __all__ = [
     "AnalysisTagTone",
     "CapabilityTagTone",
     "ChatMessage",
-    "ChatRequest",
+    "ChatMessageRequest",
     "ChatResponse",
     "ChatRole",
     "ConversationCreate",

@@ -19,7 +19,7 @@ from app.models.conversation import Conversation, ConversationMessage
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessage,
-    ChatRequest,
+    ChatMessageRequest,
     ChatResponse,
     ConversationCreate,
     ConversationDetail,
@@ -268,146 +268,19 @@ def _handle_update_capabilities(
     )
 
 
-# ── Conversation CRUD ──────────────────────────────────────────────────────────
+# ── Core chat turn (shared by POST /chat and POST /chat/{id}) ─────────────────
 
 
-@router.post(
-    "/conversations",
-    response_model=ConversationSummary,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new conversation",
-    description=(
-        "Create a new conversation. The `first_message` is used to auto-generate "
-        "a descriptive title via the secondary LLM model. "
-        "Returns the conversation ID for subsequent POST /chat calls."
-    ),
-)
-async def create_conversation(
-    body: ConversationCreate,
-    current_user: User = Depends(require_active_user),
-    session: AsyncSession = Depends(get_session),
-) -> ConversationSummary:
-    # Generate title from first message using secondary model
-    title = generate_title(body.first_message)
-
-    new_id = uuid4()
-    conv = Conversation(id=new_id, user_id=current_user.id, title=title)  # type: ignore[call-arg]
-    session.add(conv)
-    await session.commit()
-    await session.refresh(conv)
-    return ConversationSummary(
-        id=new_id,
-        title=title,
-        created_at=conv.created_at or _NOW_FALLBACK,
-        updated_at=conv.updated_at or _NOW_FALLBACK,
-        last_message_preview=body.first_message[:200],
-    )
-
-
-@router.get(
-    "/conversations",
-    response_model=list[ConversationSummary],
-    summary="List conversations for the current user",
-    description="Returns conversations ordered by most recently updated, newest first.",
-)
-async def list_conversations(
-    current_user: User = Depends(require_active_user),
-    session: AsyncSession = Depends(get_session),
-) -> list[ConversationSummary]:
-    result = await session.execute(
-        select(Conversation)
-        .where(Conversation.user_id == current_user.id)
-        .order_by(Conversation.updated_at.desc())
-    )
-    convs = result.scalars().all()
-
-    summaries: list[ConversationSummary] = []
-    for conv in convs:
-        msgs_result = await session.execute(
-            select(ConversationMessage)
-            .where(ConversationMessage.conversation_id == conv.id)
-            .order_by(ConversationMessage.created_at)
-        )
-        msgs = list(msgs_result.scalars().all())
-        summaries.append(_to_summary(conv, msgs))
-    return summaries
-
-
-@router.get(
-    "/conversations/{conversation_id}",
-    response_model=ConversationDetail,
-    summary="Get conversation history",
-    description="Returns the full message history for a conversation. Only the owner can access.",
-)
-async def get_conversation(
-    conversation_id: UUID,
-    current_user: User = Depends(require_active_user),
-    session: AsyncSession = Depends(get_session),
-) -> ConversationDetail:
-    conv = await _get_conv_or_404(conversation_id, current_user.id, session)
-
-    msgs_result = await session.execute(
-        select(ConversationMessage)
-        .where(ConversationMessage.conversation_id == conv.id)
-        .order_by(ConversationMessage.created_at)
-    )
-    msgs = list(msgs_result.scalars().all())
-
-    return ConversationDetail(
-        id=conv.id,
-        title=getattr(conv, "title", None),
-        created_at=conv.created_at,
-        updated_at=conv.updated_at,
-        messages=[
-            ConversationMessagePublic(
-                id=m.id,
-                role=m.role,  # type: ignore[arg-type]
-                content=m.content,
-                created_at=m.created_at,
-                ui_payload=getattr(m, "ui_payload", None),
-            )
-            for m in msgs
-        ],
-    )
-
-
-# ── Main chat endpoint ─────────────────────────────────────────────────────────
-
-
-@router.post(
-    "",
-    response_model=ChatResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Chat with AI assistant",
-    description=(
-        "Intent-aware chat endpoint. "
-        "Step 0: context analysis (intent + language detection). "
-        "Step 1+: route to the appropriate flow based on intent — "
-        "find_units → matching pipeline, save_draft → opportunity service, "
-        "request_deal_form → show HubSpot form, update_capabilities → US3 agent, "
-        "chitchat/clarify → lightweight reply. "
-        "Persists session context (language, last_intent) on the conversation. "
-        "Falls back to stub when LLM_API_KEY is not set."
-    ),
-)
-async def chat(
-    payload: ChatRequest,
-    current_user: User = Depends(require_active_user),
-    session: AsyncSession = Depends(get_session),
+async def _process_chat_turn(
+    session: AsyncSession,
+    conv: Conversation,
+    message: str,
+    *,
+    is_new_conversation: bool,
 ) -> ChatResponse:
-    # ── 1. Resolve or create conversation ─────────────────────────────────────
-    is_new_conversation = not payload.conversation_id
-    if payload.conversation_id:
-        conv = await _get_conv_or_404(payload.conversation_id, current_user.id, session)
-    else:
-        new_id = uuid4()
-        conv = Conversation(id=new_id, user_id=current_user.id)
-        session.add(conv)
-        await session.flush()
-
+    """Persist user message, run intent routing + LLM flows, persist assistant + ui_payload."""
     conv_id: UUID = conv.id  # type: ignore[assignment]
 
-    # ── 2. Load prior messages (for history context) ───────────────────────────
     msgs_result = await session.execute(
         select(ConversationMessage)
         .where(ConversationMessage.conversation_id == conv_id)
@@ -416,25 +289,22 @@ async def chat(
     prior_messages = list(msgs_result.scalars().all())
     history = _build_history_for_context(prior_messages)
 
-    # ── 3. Persist user message ────────────────────────────────────────────────
     user_msg = ConversationMessage(
         conversation_id=conv_id,
         role="user",
-        content=payload.message,
+        content=message,
     )
     session.add(user_msg)
 
-    # ── 4. Stub fast-path (no LLM key) ────────────────────────────────────────
     if not settings.llm_api_key:
         logger.debug("LLM_API_KEY not set — returning stub chat response")
         await session.commit()
         return _stub_response(conv_id)
 
-    # ── 5. Context analysis — LLM call 0 ──────────────────────────────────────
     session_meta = _load_session_meta(conv)
     try:
         ctx: ConversationContext = analyze_context(
-            message=payload.message,
+            message=message,
             history=history,
             session_meta=session_meta,
         )
@@ -443,7 +313,6 @@ async def chat(
         await session.commit()
         return _stub_response(conv_id)
 
-    # Update persistent session metadata
     session_meta.language = ctx.language
     session_meta.last_intent = ctx.intent
     _save_session_meta(conv, session_meta)
@@ -453,7 +322,6 @@ async def chat(
         conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
     )
 
-    # ── 6. Route by intent ────────────────────────────────────────────────────
     answer_text: str
     response: ChatResponse
 
@@ -462,7 +330,7 @@ async def chat(
     if intent == ChatIntent.find_units:
         try:
             extracted, matched_units, suggestions, answer_text = run_matching(
-                message=payload.message,
+                message=message,
                 language=ctx.language,
             )
         except Exception:
@@ -516,9 +384,6 @@ async def chat(
         response = response.model_copy(update={"context": ctx})
         answer_text = response.answer
 
-    # ── 7. Persist assistant message with full ui_payload ─────────────────────
-    # Serialize the entire response (excluding conversation_id/context for brevity)
-    # so GET /conversations/{id} can replay the exact interactive UI from history.
     ui_payload = response.model_dump(
         mode="json",
         exclude={"conversation_id"},
@@ -531,12 +396,134 @@ async def chat(
     )
     session.add(assistant_msg)
 
-    # ── 8. Auto-title new conversations after first turn ──────────────────────
-    # Run title gen only once (first turn) using the lightweight secondary model.
     if is_new_conversation and not getattr(conv, "title", None):
-        title = generate_title(payload.message)
+        title = generate_title(message)
         conv.title = title  # type: ignore[attr-defined]
 
     await session.commit()
 
     return response
+
+
+# ── Conversation & message API ─────────────────────────────────────────────────
+
+
+@router.get(
+    "",
+    response_model=list[ConversationSummary],
+    summary="List conversations",
+    description="Returns conversations for the current user, most recently updated first.",
+)
+async def list_conversations(
+    current_user: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[ConversationSummary]:
+    result = await session.execute(
+        select(Conversation)
+        .where(Conversation.user_id == current_user.id)
+        .order_by(Conversation.updated_at.desc())
+    )
+    convs = result.scalars().all()
+
+    summaries: list[ConversationSummary] = []
+    for conv in convs:
+        msgs_result = await session.execute(
+            select(ConversationMessage)
+            .where(ConversationMessage.conversation_id == conv.id)
+            .order_by(ConversationMessage.created_at)
+        )
+        msgs = list(msgs_result.scalars().all())
+        summaries.append(_to_summary(conv, msgs))
+    return summaries
+
+
+@router.post(
+    "",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Create conversation and send first message",
+    description=(
+        "Creates a new conversation, processes `first_message` through the same "
+        "intent-aware pipeline as POST /chat/{conversation_id}, persists messages, "
+        "and generates a conversation title from the first message (secondary LLM). "
+        "Returns `ChatResponse` with `conversation_id` for subsequent turns."
+    ),
+)
+async def create_conversation_and_chat(
+    body: ConversationCreate,
+    current_user: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ChatResponse:
+    new_id = uuid4()
+    conv = Conversation(id=new_id, user_id=current_user.id)
+    session.add(conv)
+    await session.flush()
+    return await _process_chat_turn(
+        session,
+        conv,
+        body.first_message,
+        is_new_conversation=True,
+    )
+
+
+@router.get(
+    "/{conversation_id}",
+    response_model=ConversationDetail,
+    summary="Get messages for a conversation",
+    description="Returns metadata and full message history (including assistant ui_payload). Owner only.",
+)
+async def get_conversation(
+    conversation_id: UUID,
+    current_user: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ConversationDetail:
+    conv = await _get_conv_or_404(conversation_id, current_user.id, session)
+
+    msgs_result = await session.execute(
+        select(ConversationMessage)
+        .where(ConversationMessage.conversation_id == conv.id)
+        .order_by(ConversationMessage.created_at)
+    )
+    msgs = list(msgs_result.scalars().all())
+
+    return ConversationDetail(
+        id=conv.id,
+        title=getattr(conv, "title", None),
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+        messages=[
+            ConversationMessagePublic(
+                id=m.id,
+                role=m.role,  # type: ignore[arg-type]
+                content=m.content,
+                created_at=m.created_at,
+                ui_payload=getattr(m, "ui_payload", None),
+            )
+            for m in msgs
+        ],
+    )
+
+
+@router.post(
+    "/{conversation_id}",
+    response_model=ChatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Send a message in an existing conversation",
+    description=(
+        "Intent-aware chat: same pipeline as POST /chat but for an existing "
+        "`conversation_id` (path). Persists user + assistant turns and session context."
+    ),
+)
+async def send_message_in_conversation(
+    conversation_id: UUID,
+    payload: ChatMessageRequest,
+    current_user: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ChatResponse:
+    conv = await _get_conv_or_404(conversation_id, current_user.id, session)
+    return await _process_chat_turn(
+        session,
+        conv,
+        payload.message,
+        is_new_conversation=False,
+    )

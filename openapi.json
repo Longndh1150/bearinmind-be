@@ -53,27 +53,15 @@
         "title": "ChatMessage",
         "type": "object"
       },
-      "ChatRequest": {
+      "ChatMessageRequest": {
         "additionalProperties": false,
+        "description": "Body for POST /chat/{conversation_id} — send a new user message in an existing conversation.",
         "properties": {
           "allow_crm_write": {
             "default": false,
             "description": "If true, server may propose CRM sync actions, but must still require explicit confirmation.",
             "title": "Allow Crm Write",
             "type": "boolean"
-          },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "If provided, continues an existing conversation; otherwise server creates one.",
-            "title": "Conversation Id"
           },
           "history": {
             "description": "Optional recent chat history for stateless clients; server may ignore if it stores history.",
@@ -96,7 +84,7 @@
         "required": [
           "message"
         ],
-        "title": "ChatRequest",
+        "title": "ChatMessageRequest",
         "type": "object"
       },
       "ChatResponse": {
@@ -177,6 +165,81 @@
         "title": "ChatResponse",
         "type": "object"
       },
+      "ChromaCollectionInfo": {
+        "properties": {
+          "collection_name": {
+            "title": "Collection Name",
+            "type": "string"
+          },
+          "total_units": {
+            "title": "Total Units",
+            "type": "integer"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/ChromaUnitItem"
+            },
+            "title": "Units",
+            "type": "array"
+          }
+        },
+        "required": [
+          "collection_name",
+          "total_units",
+          "units"
+        ],
+        "title": "ChromaCollectionInfo",
+        "type": "object"
+      },
+      "ChromaUnitItem": {
+        "properties": {
+          "case_study_titles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Case Study Titles",
+            "type": "array"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "document_preview": {
+            "description": "First 200 chars of the embedded document.",
+            "title": "Document Preview",
+            "type": "string"
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tech Stack",
+            "type": "array"
+          },
+          "unit_id": {
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "unit_name": {
+            "title": "Unit Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit_id",
+          "unit_name",
+          "document_preview"
+        ],
+        "title": "ChromaUnitItem",
+        "type": "object"
+      },
       "ConversationContext": {
         "additionalProperties": false,
         "description": "Output of the context analysis step (LLM call 0 in each chat turn).\n\nContains everything the router needs to decide which tool/flow to run.",
@@ -240,24 +303,22 @@
       },
       "ConversationCreate": {
         "additionalProperties": false,
-        "description": "Request body to explicitly create a new conversation (optional title).",
+        "description": "Request body to explicitly create a new conversation.\n\n`first_message` is used to auto-generate a descriptive title via the\nsecondary LLM model. The conversation is created immediately; the title\nis generated synchronously before the response is returned.",
         "properties": {
-          "title": {
-            "anyOf": [
-              {
-                "maxLength": 200,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+          "first_message": {
+            "description": "The user's opening message — used to generate the conversation title.",
             "examples": [
-              "D365 Japan retail"
+              "We have a D365 CRM project for a retail chain in Japan."
             ],
-            "title": "Title"
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "First Message",
+            "type": "string"
           }
         },
+        "required": [
+          "first_message"
+        ],
         "title": "ConversationCreate",
         "type": "object"
       },
@@ -310,7 +371,7 @@
       },
       "ConversationMessagePublic": {
         "additionalProperties": false,
-        "description": "Single chat turn as returned by GET /chat/conversations/{id}.",
+        "description": "Single chat turn as returned by GET /chat/{conversation_id}.",
         "properties": {
           "content": {
             "title": "Content",
@@ -334,6 +395,18 @@
             ],
             "title": "Role",
             "type": "string"
+          },
+          "ui_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ui Payload"
           }
         },
         "required": [
@@ -407,6 +480,29 @@
         ],
         "title": "DetectedLanguage",
         "type": "string"
+      },
+      "DevActionResult": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "affected": {
+            "title": "Affected",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "affected",
+          "message"
+        ],
+        "title": "DevActionResult",
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2174,7 +2270,7 @@
   },
   "info": {
     "title": "Bear In Mind API",
-    "version": "0.1.0"
+    "version": "0.1.6"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2261,14 +2357,43 @@
       }
     },
     "/api/v1/chat": {
+      "get": {
+        "description": "Returns conversations for the current user, most recently updated first.",
+        "operationId": "list_conversations_api_v1_chat_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response List Conversations Api V1 Chat Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List conversations",
+        "tags": [
+          "chat"
+        ]
+      },
       "post": {
-        "description": "Intent-aware chat endpoint. Step 0: context analysis (intent + language detection). Step 1+: route to the appropriate flow based on intent — find_units → matching pipeline, save_draft → opportunity service, request_deal_form → show HubSpot form, update_capabilities → US3 agent, chitchat/clarify → lightweight reply. Persists session context (language, last_intent) on the conversation. Falls back to stub when LLM_API_KEY is not set.",
-        "operationId": "chat_api_v1_chat_post",
+        "description": "Creates a new conversation, processes `first_message` through the same intent-aware pipeline as POST /chat/{conversation_id}, persists messages, and generates a conversation title from the first message (secondary LLM). Returns `ChatResponse` with `conversation_id` for subsequent turns.",
+        "operationId": "create_conversation_and_chat_api_v1_chat_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChatRequest"
+                "$ref": "#/components/schemas/ConversationCreate"
               }
             }
           },
@@ -2301,92 +2426,16 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Chat with AI assistant",
+        "summary": "Create conversation and send first message",
         "tags": [
           "chat"
         ]
       }
     },
-    "/api/v1/chat/conversations": {
+    "/api/v1/chat/{conversation_id}": {
       "get": {
-        "description": "Returns conversations ordered by most recently updated, newest first.",
-        "operationId": "list_conversations_api_v1_chat_conversations_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConversationSummary"
-                  },
-                  "title": "Response List Conversations Api V1 Chat Conversations Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List conversations for the current user",
-        "tags": [
-          "chat"
-        ]
-      },
-      "post": {
-        "description": "Explicitly create an empty conversation. Returns its ID for use in POST /chat.",
-        "operationId": "create_conversation_api_v1_chat_conversations_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConversationCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConversationSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create a new conversation",
-        "tags": [
-          "chat"
-        ]
-      }
-    },
-    "/api/v1/chat/conversations/{conversation_id}": {
-      "get": {
-        "description": "Returns the full message history for a conversation. Only the owner can access.",
-        "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
+        "description": "Returns metadata and full message history (including assistant ui_payload). Owner only.",
+        "operationId": "get_conversation_api_v1_chat__conversation_id__get",
         "parameters": [
           {
             "in": "path",
@@ -2426,9 +2475,173 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get conversation history",
+        "summary": "Get messages for a conversation",
         "tags": [
           "chat"
+        ]
+      },
+      "post": {
+        "description": "Intent-aware chat: same pipeline as POST /chat but for an existing `conversation_id` (path). Persists user + assistant turns and session context.",
+        "operationId": "send_message_in_conversation_api_v1_chat__conversation_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send a message in an existing conversation",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/seed": {
+      "post": {
+        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
+        "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Seed ChromaDB with sample units",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units": {
+      "delete": {
+        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
+        "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Reset ChromaDB — delete ALL units",
+        "tags": [
+          "dev"
+        ]
+      },
+      "get": {
+        "description": "Returns every document currently indexed in the unit_capabilities collection. Disabled in production.",
+        "operationId": "dev_list_chroma_units_api_v1_dev_chroma_units_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChromaCollectionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] List all units in ChromaDB",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units/{unit_id}": {
+      "delete": {
+        "description": "Removes one unit by its Chroma ID. Disabled in production.",
+        "operationId": "dev_delete_chroma_unit_api_v1_dev_chroma_units__unit_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[DEV] Delete a single unit from ChromaDB",
+        "tags": [
+          "dev"
         ]
       }
     },

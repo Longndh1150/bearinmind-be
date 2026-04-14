@@ -36,12 +36,17 @@ class Settings(BaseSettings):
 
     # Generic LLM configuration (works with OpenAI-compatible providers)
     # Examples:
-    # - OpenAI: leave `llm_base_url` empty; set `llm_api_key`, `llm_model="gpt-4o-mini"`
-    # - OpenRouter: set `llm_base_url="https://openrouter.ai/api/v1"`,
-    #   `llm_model="openai/gpt-4o-mini"` (or any OpenRouter model id)
+    # - OpenAI: leave `llm_base_url` empty; set `llm_api_key`
+    # - OpenRouter: set `llm_base_url="https://openrouter.ai/api/v1"`
+    #
+    # llm_model_primary   — used for complex tasks: entity extraction, ranking,
+    #                        intent classification, answer generation.
+    # llm_model_secondary — used for lightweight tasks: conversation title gen,
+    #                        short summaries, etc.
     llm_api_key: str = ""
     llm_base_url: str = ""
-    llm_model: str = "gpt-4o-mini"
+    llm_model_primary: str = "google/gemini-2.5-pro"
+    llm_model_secondary: str = "google/gemini-3-flash-preview"
 
 
 @lru_cache

@@ -60,6 +60,11 @@ class ConversationMessage(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # user | assistant | tool
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
+    # Stores the full structured payload for assistant turns so chat history
+    # can reproduce the exact interactive UI (analysis_card, suggestions, etc.)
+    # without re-running the LLM. Null for user messages.
+    ui_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -84,7 +84,7 @@ def analyze_context(
     client = _llm_client()
     try:
         resp = client.chat.completions.create(
-            model=settings.llm_model,
+            model=settings.llm_model_primary,
             messages=[{"role": "system", "content": system_prompt}],
             response_format={"type": "json_object"},
         )

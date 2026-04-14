@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context_analyzer import analyze_context
 from app.ai.agents.matching import run_matching
+from app.ai.agents.title_generator import generate_title
 from app.api.deps import get_session, require_active_user
 from app.core.config import settings
 from app.models.conversation import Conversation, ConversationMessage
@@ -275,26 +276,31 @@ def _handle_update_capabilities(
     response_model=ConversationSummary,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new conversation",
-    description="Explicitly create an empty conversation. Returns its ID for use in POST /chat.",
+    description=(
+        "Create a new conversation. The `first_message` is used to auto-generate "
+        "a descriptive title via the secondary LLM model. "
+        "Returns the conversation ID for subsequent POST /chat calls."
+    ),
 )
 async def create_conversation(
     body: ConversationCreate,
     current_user: User = Depends(require_active_user),
     session: AsyncSession = Depends(get_session),
 ) -> ConversationSummary:
+    # Generate title from first message using secondary model
+    title = generate_title(body.first_message)
+
     new_id = uuid4()
-    conv = Conversation(id=new_id, user_id=current_user.id)
-    if body.title:
-        conv.title = body.title  # type: ignore[attr-defined]
+    conv = Conversation(id=new_id, user_id=current_user.id, title=title)  # type: ignore[call-arg]
     session.add(conv)
     await session.commit()
     await session.refresh(conv)
     return ConversationSummary(
         id=new_id,
-        title=getattr(conv, "title", None),
+        title=title,
         created_at=conv.created_at or _NOW_FALLBACK,
         updated_at=conv.updated_at or _NOW_FALLBACK,
-        last_message_preview=None,
+        last_message_preview=body.first_message[:200],
     )
 
 
@@ -358,6 +364,7 @@ async def get_conversation(
                 role=m.role,  # type: ignore[arg-type]
                 content=m.content,
                 created_at=m.created_at,
+                ui_payload=getattr(m, "ui_payload", None),
             )
             for m in msgs
         ],
@@ -389,6 +396,7 @@ async def chat(
     session: AsyncSession = Depends(get_session),
 ) -> ChatResponse:
     # ── 1. Resolve or create conversation ─────────────────────────────────────
+    is_new_conversation = not payload.conversation_id
     if payload.conversation_id:
         conv = await _get_conv_or_404(payload.conversation_id, current_user.id, session)
     else:
@@ -508,13 +516,27 @@ async def chat(
         response = response.model_copy(update={"context": ctx})
         answer_text = response.answer
 
-    # ── 7. Persist assistant message ──────────────────────────────────────────
+    # ── 7. Persist assistant message with full ui_payload ─────────────────────
+    # Serialize the entire response (excluding conversation_id/context for brevity)
+    # so GET /conversations/{id} can replay the exact interactive UI from history.
+    ui_payload = response.model_dump(
+        mode="json",
+        exclude={"conversation_id"},
+    )
     assistant_msg = ConversationMessage(
         conversation_id=conv_id,
         role="assistant",
         content=answer_text,
+        ui_payload=ui_payload,
     )
     session.add(assistant_msg)
+
+    # ── 8. Auto-title new conversations after first turn ──────────────────────
+    # Run title gen only once (first turn) using the lightweight secondary model.
+    if is_new_conversation and not getattr(conv, "title", None):
+        title = generate_title(payload.message)
+        conv.title = title  # type: ignore[attr-defined]
+
     await session.commit()
 
     return response

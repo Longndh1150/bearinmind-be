@@ -53,7 +53,7 @@ def _chat_json(client: OpenAI, system: str, user: str = "") -> dict:
         messages.append({"role": "user", "content": user})
 
     resp = client.chat.completions.create(
-        model=settings.llm_model,
+        model=settings.llm_model_primary,
         messages=messages,
         response_format={"type": "json_object"},
     )
@@ -230,7 +230,7 @@ def _build_answer(
     client = _llm_client()
     try:
         resp = client.chat.completions.create(
-            model=settings.llm_model,
+            model=settings.llm_model_primary,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user_prompt},

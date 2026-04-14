@@ -13,13 +13,13 @@ class SemVer:
     patch: int
 
     @classmethod
-    def parse(cls, s: str) -> "SemVer":
+    def parse(cls, s: str) -> SemVer:
         m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", s.strip())
         if not m:
             raise ValueError(f"Invalid semver: {s!r} (expected MAJOR.MINOR.PATCH)")
         return cls(int(m.group(1)), int(m.group(2)), int(m.group(3)))
 
-    def bump(self, part: str) -> "SemVer":
+    def bump(self, part: str) -> SemVer:
         if part == "major":
             return SemVer(self.major + 1, 0, 0)
         if part == "minor":

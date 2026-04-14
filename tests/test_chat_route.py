@@ -354,11 +354,15 @@ def test_create_conversation():
     app.dependency_overrides[get_session] = _session_override()
     try:
         c = TestClient(app)
-        r = c.post("/api/v1/chat/conversations", json={})
+        r = c.post(
+            "/api/v1/chat/conversations",
+            json={"first_message": "We have a D365 project for Japan retail."},
+        )
         assert r.status_code == 201
         body = r.json()
         assert "id" in body
         assert "created_at" in body
+        assert body["title"]  # title should be generated (or fallback)
     finally:
         app.dependency_overrides.clear()
 

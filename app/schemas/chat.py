@@ -13,11 +13,21 @@ from app.schemas.llm import OpportunityExtract
 
 
 class ConversationCreate(BaseModel):
-    """Request body to explicitly create a new conversation (optional title)."""
+    """Request body to explicitly create a new conversation.
+
+    `first_message` is used to auto-generate a descriptive title via the
+    secondary LLM model. The conversation is created immediately; the title
+    is generated synchronously before the response is returned.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str | None = Field(default=None, max_length=200, examples=["D365 Japan retail"])
+    first_message: str = Field(
+        min_length=1,
+        max_length=20_000,
+        examples=["We have a D365 CRM project for a retail chain in Japan."],
+        description="The user's opening message — used to generate the conversation title.",
+    )
 
 
 class ConversationSummary(BaseModel):
@@ -45,6 +55,9 @@ class ConversationMessagePublic(BaseModel):
     role: Literal["user", "assistant", "tool"]
     content: str
     created_at: datetime
+    # Present on assistant turns: the full structured payload so FE can
+    # re-render interactive cards (analysis_card, suggestions, etc.) from history.
+    ui_payload: dict | None = Field(default=None)
 
 
 class ConversationDetail(BaseModel):

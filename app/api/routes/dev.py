@@ -165,7 +165,7 @@ def dev_delete_chroma_unit(unit_id: str) -> DevActionResult:
     summary="[DEV] Reset ChromaDB — delete ALL units",
     description=(
         "Drops the entire unit_capabilities collection and recreates it empty. "
-        "Run seed_units again to repopulate. Disabled in production."
+        "Run `python -m scripts.seed.units` again to repopulate. Disabled in production."
     ),
 )
 def dev_reset_chroma() -> DevActionResult:
@@ -200,29 +200,27 @@ def dev_reset_chroma() -> DevActionResult:
 @router.post(
     "/chroma/seed",
     response_model=DevActionResult,
-    summary="[DEV] Seed ChromaDB with sample units",
+    summary="[DEV] Seed unit data (Postgres + Chroma)",
     description=(
-        "Runs the built-in seed data (same as `python -m scripts.seed_units`). "
-        "Uses stable UUIDs — safe to call multiple times (idempotent upsert). "
+        "Runs the built-in unit seed flow (same as `python -m scripts.seed.units`). "
+        "Upserts unit capability data into PostgreSQL and then re-indexes to Chroma. "
         "Disabled in production."
     ),
 )
-def dev_seed_chroma() -> DevActionResult:
+async def dev_seed_chroma() -> DevActionResult:
     _guard_non_production()
     try:
-        from app.ai.tools.vector_search import index_unit
-        from scripts.seed_units import SEED_UNITS
+        from scripts.seed.units import SEED_UNITS, seed_units
 
-        for unit in SEED_UNITS:
-            index_unit(**unit)
+        await seed_units()
     except Exception as exc:
-        logger.exception("Chroma seed failed")
+        logger.exception("Unit seed failed")
         raise HTTPException(status_code=502, detail=f"Seed error: {exc}") from exc
 
     return DevActionResult(
         action="seed_chroma",
         affected=len(SEED_UNITS),
-        message=f"Seeded {len(SEED_UNITS)} unit(s) into '{COLLECTION_NAME}' (upserted).",
+        message=f"Seeded {len(SEED_UNITS)} unit(s) into PostgreSQL and '{COLLECTION_NAME}' (upserted).",
     )
 
 

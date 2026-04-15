@@ -24,8 +24,13 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    # Chroma vector store mode:
+    # - http: connect to external Chroma server via host/port
+    # - persistent: use local on-disk Chroma store (single-process deployments)
+    chroma_mode: str = "http"
     chroma_host: str = "localhost"
     chroma_port: int = 3333
+    chroma_persist_dir: str = "./chroma"
 
     # Auth (JWT)
     jwt_secret_key: str = "CHANGE_ME"
@@ -44,9 +49,10 @@ class Settings(BaseSettings):
     # llm_model_secondary — used for lightweight tasks: conversation title gen,
     #                        short summaries, etc.
     llm_api_key: str = ""
-    llm_base_url: str = ""
+    llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_model_primary: str = "google/gemini-2.5-pro"
     llm_model_secondary: str = "google/gemini-3-flash-preview"
+    llm_embedding_model: str = "google/gemini-embedding-001"
 
     # HubSpot integration (private app token)
     hubspot_api_key: str = ""

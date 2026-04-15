@@ -31,7 +31,7 @@ docker compose up -d redis chroma
 alembic upgrade head
 
 # Data seeding
-python -m scripts.seed_units
+python -m scripts.seed.units
 
 # API (dev)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -59,6 +59,9 @@ uv run fastapi dev app/main.py
 uv run ci
 ```
 
+- **Chroma modes:**
+  - `CHROMA_MODE=http` (default): connect to Chroma server (`CHROMA_HOST`/`CHROMA_PORT`)
+  - `CHROMA_MODE=persistent`: store vectors locally on disk at `CHROMA_PERSIST_DIR` (useful on single-service deploy targets such as Railway)
 - **Liveness:** `GET http://localhost:8000/health`
 - **Readiness** (needs Docker up): `GET http://localhost:8000/api/v1/health/ready`
 - **Auth (sample):**

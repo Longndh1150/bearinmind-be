@@ -12,7 +12,7 @@ from app.api.deps import require_active_user, require_superuser
 from app.db.session import get_session
 from app.models.user import User
 from app.models.unit import Unit, UnitExpert, UnitCaseStudy
-from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, UnitCapabilities, UnitExpert as SchemaUnitExpert, UnitCaseStudy as SchemaUnitCaseStudy
+from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, UnitCapabilities, UnitExpert as SchemaUnitExpert, UnitCaseStudy as SchemaUnitCaseStudy, UnitStaffAvailability, UnitCaseStudiesResponse
 
 from app.services.hrm_client import get_available_staff, get_unit_capacity
 from app.services.case_study_client import get_case_studies
@@ -143,3 +143,45 @@ async def clear_capabilities(
     await reindex_unit(str(unit.id))
     
     return {"message": msg, "unit_id": unit_id}
+
+@router.get("/{unit_id}/staff/available", response_model=UnitStaffAvailability, summary="Get available staff and experts for a unit")
+async def get_unit_staff_availability(
+    unit_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_active_user)
+) -> UnitStaffAvailability:
+    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts)])
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+        
+    experts = [SchemaUnitExpert(name=e.name, focus_areas=e.focus_areas or [], profile_url=e.profile_url) for e in unit.experts]
+    
+    # Get available staff from HRM
+    hrm_staff = await get_available_staff(str(unit_id))
+    hrm_capacity = await get_unit_capacity(str(unit_id))
+    
+    return UnitStaffAvailability(
+        experts=experts,
+        hrm_available_staff=hrm_staff,
+        hrm_capacity=hrm_capacity
+    )
+
+@router.get("/{unit_id}/case-studies", response_model=UnitCaseStudiesResponse, summary="Get case studies for a unit")
+async def get_unit_case_studies_api(
+    unit_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_active_user)
+) -> UnitCaseStudiesResponse:
+    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.case_studies)])
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    
+    db_case_studies = [SchemaUnitCaseStudy(title=c.title, domain=c.domain, tech_stack=c.tech_stack or [], url=c.url) for c in unit.case_studies]
+    
+    # Fetch from external integration
+    external_case_studies = await get_case_studies(str(unit_id))
+    
+    return UnitCaseStudiesResponse(
+        internal=db_case_studies,
+        external=external_case_studies
+    )

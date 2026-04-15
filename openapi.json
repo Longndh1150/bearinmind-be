@@ -2882,9 +2882,6 @@
   "info": {
     "title": "Bear In Mind API",
     "version": "0.1.7"
-=======
-    "version": "0.1.6"
->>>>>>> 7ddbb55 (hrm update)
   },
   "openapi": "3.1.0",
   "paths": {
@@ -3048,10 +3045,6 @@
     },
     "/api/v1/chat/{conversation_id}": {
       "get": {
-<<<<<<< HEAD
-        "description": "Returns metadata and full message history (including assistant ui_payload). Owner only.",
-        "operationId": "get_conversation_api_v1_chat__conversation_id__get",
-=======
         "description": "Returns conversations ordered by most recently updated, newest first.",
         "operationId": "list_conversations_api_v1_chat_conversations_get",
         "responses": {
@@ -3130,7 +3123,6 @@
       "get": {
         "description": "Returns the full message history for a conversation. Only the owner can access.",
         "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
->>>>>>> 7ddbb55 (hrm update)
         "parameters": [
           {
             "in": "path",

@@ -13,7 +13,7 @@ API and AI layer for **Bear In Mind**: an LLM-assisted system that matches sales
 
 ```bash
 # Python version
-# - `pyproject.toml` requires Python >= 3.13
+# - `pyproject.toml` requires Python >= 3.13 
 # - If you're using `pip + venv`, make sure your `python` points to 3.13+
 python -m venv .venv
 # Windows: .venv\Scripts\activate

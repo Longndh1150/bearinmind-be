@@ -504,7 +504,6 @@
         "title": "DevActionResult",
         "type": "object"
       },
-<<<<<<< HEAD
       "DevSmokeResult": {
         "description": "Minimal health check for external APIs (no secrets in response).",
         "properties": {
@@ -536,8 +535,6 @@
         "title": "DevSmokeResult",
         "type": "object"
       },
-=======
->>>>>>> 7ddbb55 (hrm update)
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2884,7 +2881,6 @@
   },
   "info": {
     "title": "Bear In Mind API",
-<<<<<<< HEAD
     "version": "0.1.7"
 =======
     "version": "0.1.6"

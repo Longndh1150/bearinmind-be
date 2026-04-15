@@ -504,6 +504,7 @@
         "title": "DevActionResult",
         "type": "object"
       },
+<<<<<<< HEAD
       "DevSmokeResult": {
         "description": "Minimal health check for external APIs (no secrets in response).",
         "properties": {
@@ -535,6 +536,8 @@
         "title": "DevSmokeResult",
         "type": "object"
       },
+=======
+>>>>>>> 7ddbb55 (hrm update)
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2881,7 +2884,11 @@
   },
   "info": {
     "title": "Bear In Mind API",
+<<<<<<< HEAD
     "version": "0.1.7"
+=======
+    "version": "0.1.6"
+>>>>>>> 7ddbb55 (hrm update)
   },
   "openapi": "3.1.0",
   "paths": {
@@ -3045,8 +3052,89 @@
     },
     "/api/v1/chat/{conversation_id}": {
       "get": {
+<<<<<<< HEAD
         "description": "Returns metadata and full message history (including assistant ui_payload). Owner only.",
         "operationId": "get_conversation_api_v1_chat__conversation_id__get",
+=======
+        "description": "Returns conversations ordered by most recently updated, newest first.",
+        "operationId": "list_conversations_api_v1_chat_conversations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response List Conversations Api V1 Chat Conversations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List conversations for the current user",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "description": "Create a new conversation. The `first_message` is used to auto-generate a descriptive title via the secondary LLM model. Returns the conversation ID for subsequent POST /chat calls.",
+        "operationId": "create_conversation_api_v1_chat_conversations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a new conversation",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/chat/conversations/{conversation_id}": {
+      "get": {
+        "description": "Returns the full message history for a conversation. Only the owner can access.",
+        "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
+>>>>>>> 7ddbb55 (hrm update)
         "parameters": [
           {
             "in": "path",
@@ -3295,6 +3383,113 @@
           }
         },
         "summary": "[DEV] Smoke test LLM API key",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/seed": {
+      "post": {
+        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
+        "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Seed ChromaDB with sample units",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units": {
+      "delete": {
+        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
+        "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Reset ChromaDB — delete ALL units",
+        "tags": [
+          "dev"
+        ]
+      },
+      "get": {
+        "description": "Returns every document currently indexed in the unit_capabilities collection. Disabled in production.",
+        "operationId": "dev_list_chroma_units_api_v1_dev_chroma_units_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChromaCollectionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] List all units in ChromaDB",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units/{unit_id}": {
+      "delete": {
+        "description": "Removes one unit by its Chroma ID. Disabled in production.",
+        "operationId": "dev_delete_chroma_unit_api_v1_dev_chroma_units__unit_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[DEV] Delete a single unit from ChromaDB",
         "tags": [
           "dev"
         ]

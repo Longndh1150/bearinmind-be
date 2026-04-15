@@ -13,11 +13,20 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = True
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/bearinmind"
+   database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/bearinmind"
+
+    @property
+    def async_database_url(self) -> str:
+        # Nếu Railway trả về postgresql://, ta đổi nó thành postgresql+asyncpg://
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
 
     @property
     def database_url_sync(self) -> str:
-        u = self.database_url
+        # Logic cũ của bạn cho Alembic (dùng psycopg)
+        u = self.async_database_url
         if u.startswith("postgresql+asyncpg"):
             return u.replace("postgresql+asyncpg", "postgresql+psycopg", 1)
         return u

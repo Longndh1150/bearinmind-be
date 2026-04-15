@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.auth import Token
+from app.schemas.auth import MicrosoftAuthLogin, Token
 from app.schemas.user import UserCreate, UserLogin, UserPublic
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
@@ -32,5 +32,16 @@ async def login(
     token = await AuthService.login(session, email=str(payload.email), password=payload.password)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    return token
+
+@router.post("/login/microsoft", response_model=Token)
+async def login_microsoft(
+    payload: MicrosoftAuthLogin,
+    session: AsyncSession = Depends(get_session),
+) -> Token:
+    """Login or Register with Microsoft SSO"""
+    token = await AuthService.login_microsoft(session, payload.access_token)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials from SSO")
     return token
 

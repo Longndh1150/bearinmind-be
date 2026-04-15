@@ -252,30 +252,6 @@ def _handle_request_deal_form(
         suggested_actions=["submit_deal_form"],
     )
 
-
-<<<<<<< HEAD
-def _handle_update_capabilities(
-    ctx: ConversationContext,
-    conv_id: UUID,
-) -> ChatResponse:
-    """Stub for US3 capabilities update flow."""
-    if ctx.language == DetectedLanguage.vi:
-        answer = "Tính năng cập nhật capabilities đang được phát triển. Vui lòng sử dụng API PUT /units/{id}/capabilities."
-    else:
-        answer = "The capabilities update feature is coming soon. Please use the API PUT /units/{id}/capabilities."
-    return ChatResponse(
-        conversation_id=conv_id,
-        answer=answer,
-        suggested_actions=[],
-    )
-
-
-# ── Core chat turn (shared by POST /chat and POST /chat/{id}) ─────────────────
-=======
-# ── Conversation CRUD ──────────────────────────────────────────────────────────
->>>>>>> 7ddbb55 (hrm update)
-
-
 async def _process_chat_turn(
     session: AsyncSession,
     conv: Conversation,

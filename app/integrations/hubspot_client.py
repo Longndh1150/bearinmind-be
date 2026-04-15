@@ -75,7 +75,10 @@ async def _request(
                 last_exc = HubSpotAPIError(resp.status_code, "RETRYABLE", resp.text)
                 continue
 
-            body = resp.json() if resp.content else {}
+            try:
+                body = resp.json() if resp.content else {}
+            except Exception:
+                body = {}
             raise HubSpotAPIError(
                 status_code=resp.status_code,
                 category=body.get("category", "UNKNOWN"),

@@ -48,13 +48,10 @@ class Settings(BaseSettings):
     llm_model_primary: str = "google/gemini-2.5-pro"
     llm_model_secondary: str = "google/gemini-3-flash-preview"
 
-<<<<<<< HEAD
-=======
     # HubSpot integration (private app token)
     hubspot_api_key: str = ""
     hubspot_base_url: str = "https://api.hubapi.com"
 
->>>>>>> origin/develop
 
 @lru_cache
 def get_settings() -> Settings:

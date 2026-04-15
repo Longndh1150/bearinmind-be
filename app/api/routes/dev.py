@@ -6,26 +6,17 @@ Useful during development and demo setup. Never enable in production.
 
 from __future__ import annotations
 
-<<<<<<< HEAD
-import logging
-
-from fastapi import APIRouter, HTTPException, status
-=======
 import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
 from openai import OpenAI
->>>>>>> origin/develop
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection
 from app.core.config import settings
-<<<<<<< HEAD
-=======
 from app.integrations.hubspot_client import HubSpotAPIError
 from app.services import hubspot_service
->>>>>>> origin/develop
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +61,6 @@ class DevActionResult(BaseModel):
     message: str
 
 
-<<<<<<< HEAD
-=======
 class DevSmokeResult(BaseModel):
     """Minimal health check for external APIs (no secrets in response)."""
 
@@ -85,7 +74,6 @@ class DevSmokeResult(BaseModel):
     )
 
 
->>>>>>> origin/develop
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -236,8 +224,6 @@ def dev_seed_chroma() -> DevActionResult:
         affected=len(SEED_UNITS),
         message=f"Seeded {len(SEED_UNITS)} unit(s) into '{COLLECTION_NAME}' (upserted).",
     )
-<<<<<<< HEAD
-=======
 
 
 def _smoke_llm_sync() -> DevSmokeResult:
@@ -314,4 +300,3 @@ async def dev_smoke_hubspot() -> DevSmokeResult:
         message="HubSpot API key works.",
         detail=f"users_fetched={len(users)}",
     )
->>>>>>> origin/develop

@@ -53,14 +53,9 @@
         "title": "ChatMessage",
         "type": "object"
       },
-<<<<<<< HEAD
-      "ChatRequest": {
-        "additionalProperties": false,
-=======
       "ChatMessageRequest": {
         "additionalProperties": false,
         "description": "Body for POST /chat/{conversation_id} — send a new user message in an existing conversation.",
->>>>>>> origin/develop
         "properties": {
           "allow_crm_write": {
             "default": false,
@@ -68,22 +63,6 @@
             "title": "Allow Crm Write",
             "type": "boolean"
           },
-<<<<<<< HEAD
-          "conversation_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "If provided, continues an existing conversation; otherwise server creates one.",
-            "title": "Conversation Id"
-          },
-=======
->>>>>>> origin/develop
           "history": {
             "description": "Optional recent chat history for stateless clients; server may ignore if it stores history.",
             "items": {
@@ -105,11 +84,7 @@
         "required": [
           "message"
         ],
-<<<<<<< HEAD
-        "title": "ChatRequest",
-=======
         "title": "ChatMessageRequest",
->>>>>>> origin/develop
         "type": "object"
       },
       "ChatResponse": {
@@ -396,11 +371,7 @@
       },
       "ConversationMessagePublic": {
         "additionalProperties": false,
-<<<<<<< HEAD
-        "description": "Single chat turn as returned by GET /chat/conversations/{id}.",
-=======
         "description": "Single chat turn as returned by GET /chat/{conversation_id}.",
->>>>>>> origin/develop
         "properties": {
           "content": {
             "title": "Content",
@@ -533,8 +504,6 @@
         "title": "DevActionResult",
         "type": "object"
       },
-<<<<<<< HEAD
-=======
       "DevSmokeResult": {
         "description": "Minimal health check for external APIs (no secrets in response).",
         "properties": {
@@ -566,7 +535,6 @@
         "title": "DevSmokeResult",
         "type": "object"
       },
->>>>>>> origin/develop
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -580,11 +548,6 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-<<<<<<< HEAD
-      "HubSpotDealCreateResponse": {
-        "additionalProperties": false,
-        "description": "Result after accepting draft (HubSpot create is stubbed until integration).",
-=======
       "HubSpotBootstrapResponse": {
         "additionalProperties": false,
         "description": "Single round-trip for deal form: pipelines + form-field properties + users.\n\nAligns with FE note to bundle metadata when opening HubSpot flow.",
@@ -622,7 +585,6 @@
       "HubSpotDealCreateResponse": {
         "additionalProperties": false,
         "description": "Result after creating a deal in HubSpot.",
->>>>>>> origin/develop
         "properties": {
           "hubspot_deal_id": {
             "anyOf": [
@@ -642,11 +604,7 @@
           "message": {
             "default": "",
             "examples": [
-<<<<<<< HEAD
-              "Deal created (stub)"
-=======
               "Deal created successfully"
->>>>>>> origin/develop
             ],
             "title": "Message",
             "type": "string"
@@ -661,11 +619,6 @@
         "type": "object"
       },
       "HubSpotDealDraft": {
-<<<<<<< HEAD
-        "additionalProperties": false,
-        "description": "User-submitted deal draft from the in-chat form (case 2).",
-        "properties": {
-=======
         "additionalProperties": true,
         "description": "User-submitted deal draft from the in-chat form.",
         "properties": {
@@ -693,7 +646,6 @@
             ],
             "title": "Contracttype"
           },
->>>>>>> origin/develop
           "dealName": {
             "anyOf": [
               {
@@ -718,8 +670,6 @@
             ],
             "title": "Dealsubowner"
           },
-<<<<<<< HEAD
-=======
           "dealType": {
             "anyOf": [
               {
@@ -756,7 +706,6 @@
             ],
             "title": "Jpdeliverymanager"
           },
->>>>>>> origin/develop
           "jpSectionLead": {
             "anyOf": [
               {
@@ -769,8 +718,6 @@
             ],
             "title": "Jpsectionlead"
           },
-<<<<<<< HEAD
-=======
           "krSectionLead": {
             "anyOf": [
               {
@@ -807,7 +754,6 @@
             ],
             "title": "Linkedcompanylabel"
           },
->>>>>>> origin/develop
           "market": {
             "anyOf": [
               {
@@ -866,10 +812,6 @@
                 "type": "null"
               }
             ],
-<<<<<<< HEAD
-            "description": "At most 50 entries; each string trimmed by client.",
-=======
->>>>>>> origin/develop
             "title": "Onsitedeliveryteam"
           },
           "onsiteOffshoreType": {
@@ -912,8 +854,6 @@
             ],
             "title": "Owner"
           },
-<<<<<<< HEAD
-=======
           "paymentPeriodMonths": {
             "anyOf": [
               {
@@ -926,7 +866,6 @@
             ],
             "title": "Paymentperiodmonths"
           },
->>>>>>> origin/develop
           "pipeline": {
             "anyOf": [
               {
@@ -939,8 +878,6 @@
             ],
             "title": "Pipeline"
           },
-<<<<<<< HEAD
-=======
           "presales": {
             "anyOf": [
               {
@@ -1001,7 +938,6 @@
             ],
             "title": "Servicelevel"
           },
->>>>>>> origin/develop
           "status": {
             "anyOf": [
               {
@@ -1023,8 +959,6 @@
             ],
             "title": "Status"
           },
-<<<<<<< HEAD
-=======
           "thSectionLead": {
             "anyOf": [
               {
@@ -1052,7 +986,6 @@
             ],
             "title": "Ussectionlead"
           },
->>>>>>> origin/develop
           "yearOfPipeline": {
             "anyOf": [
               {
@@ -1069,8 +1002,6 @@
         "title": "HubSpotDealDraft",
         "type": "object"
       },
-<<<<<<< HEAD
-=======
       "HubSpotDealSearchResponse": {
         "properties": {
           "paging": {
@@ -1423,7 +1354,6 @@
         "title": "HubSpotUsersResponse",
         "type": "object"
       },
->>>>>>> origin/develop
       "MatchRationale": {
         "additionalProperties": false,
         "properties": {
@@ -2951,11 +2881,7 @@
   },
   "info": {
     "title": "Bear In Mind API",
-<<<<<<< HEAD
-    "version": "0.1.6"
-=======
     "version": "0.1.7"
->>>>>>> origin/develop
   },
   "openapi": "3.1.0",
   "paths": {
@@ -3042,11 +2968,6 @@
       }
     },
     "/api/v1/chat": {
-<<<<<<< HEAD
-      "post": {
-        "description": "Intent-aware chat endpoint. Step 0: context analysis (intent + language detection). Step 1+: route to the appropriate flow based on intent — find_units → matching pipeline, save_draft → opportunity service, request_deal_form → show HubSpot form, update_capabilities → US3 agent, chitchat/clarify → lightweight reply. Persists session context (language, last_intent) on the conversation. Falls back to stub when LLM_API_KEY is not set.",
-        "operationId": "chat_api_v1_chat_post",
-=======
       "get": {
         "description": "Returns conversations for the current user, most recently updated first.",
         "operationId": "list_conversations_api_v1_chat_get",
@@ -3079,16 +3000,11 @@
       "post": {
         "description": "Creates a new conversation, processes `first_message` through the same intent-aware pipeline as POST /chat/{conversation_id}, persists messages, and generates a conversation title from the first message (secondary LLM). Returns `ChatResponse` with `conversation_id` for subsequent turns.",
         "operationId": "create_conversation_and_chat_api_v1_chat_post",
->>>>>>> origin/develop
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-<<<<<<< HEAD
-                "$ref": "#/components/schemas/ChatRequest"
-=======
                 "$ref": "#/components/schemas/ConversationCreate"
->>>>>>> origin/develop
               }
             }
           },
@@ -3121,21 +3037,13 @@
             "HTTPBearer": []
           }
         ],
-<<<<<<< HEAD
-        "summary": "Chat with AI assistant",
-=======
         "summary": "Create conversation and send first message",
->>>>>>> origin/develop
         "tags": [
           "chat"
         ]
       }
     },
-<<<<<<< HEAD
-    "/api/v1/chat/conversations": {
-=======
     "/api/v1/chat/{conversation_id}": {
->>>>>>> origin/develop
       "get": {
         "description": "Returns conversations ordered by most recently updated, newest first.",
         "operationId": "list_conversations_api_v1_chat_conversations_get",
@@ -3254,12 +3162,6 @@
             "HTTPBearer": []
           }
         ],
-<<<<<<< HEAD
-        "summary": "Get conversation history",
-        "tags": [
-          "chat"
-        ]
-=======
         "summary": "Get messages for a conversation",
         "tags": [
           "chat"
@@ -3472,7 +3374,6 @@
         "tags": [
           "dev"
         ]
->>>>>>> origin/develop
       }
     },
     "/api/v1/dev/chroma/seed": {
@@ -3605,12 +3506,6 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "/api/v1/hubspot/deals": {
-      "post": {
-        "description": "Accepts the same JSON shape as the frontend `DealDraft` (camelCase keys). HubSpot integration can be wired later; this endpoint validates shape and returns a stub id.",
-        "operationId": "create_deal_from_draft_api_v1_hubspot_deals_post",
-=======
     "/api/v1/hubspot/bootstrap": {
       "get": {
         "description": "Bundles the three metadata calls used to render the HubSpot deal form: pipelines, deal properties filtered to ``formField=true``, and users.",
@@ -3744,7 +3639,6 @@
       "post": {
         "description": "Accepts the same JSON shape as the frontend ``DealDraft`` (camelCase keys). Maps fields to HubSpot property names and creates the deal via the HubSpot API.",
         "operationId": "create_deal_api_v1_hubspot_deals_post",
->>>>>>> origin/develop
         "requestBody": {
           "content": {
             "application/json": {
@@ -3782,9 +3676,6 @@
             "HTTPBearer": []
           }
         ],
-<<<<<<< HEAD
-        "summary": "Create HubSpot deal from form draft",
-=======
         "summary": "Create a HubSpot deal from form draft",
         "tags": [
           "hubspot"
@@ -3992,7 +3883,6 @@
           }
         ],
         "summary": "Get HubSpot users (for owner / sub-owner fields)",
->>>>>>> origin/develop
         "tags": [
           "hubspot"
         ]
@@ -4120,11 +4010,7 @@
     },
     "/api/v1/opportunities": {
       "get": {
-<<<<<<< HEAD
-        "description": "US6: returns a consolidated list; v1 can start with local DB only.",
-=======
         "description": "US6: returns a consolidated list; currently local DB.",
->>>>>>> origin/develop
         "operationId": "list_opportunities_api_v1_opportunities_get",
         "parameters": [
           {
@@ -4184,26 +4070,6 @@
           },
           {
             "in": "query",
-<<<<<<< HEAD
-            "name": "unit_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Unit Id"
-            }
-          },
-          {
-            "in": "query",
-=======
->>>>>>> origin/develop
             "name": "q",
             "required": false,
             "schema": {

@@ -1,23 +1,12 @@
-<<<<<<< HEAD
-"""HubSpot deal form payload (case 2: user fills form in chat, FE POSTs JSON to BE).
-
-Aligns with `bearinmind-fe` `DealDraft` in `src/renderer/src/types/chat.ts`.
-Validation is intentionally light (length bounds, enums); no separate validate endpoint.
-=======
 """HubSpot deal form payload — aligned with FE ``DealDraft`` (``bearinmind-fe/src/renderer/src/types/chat.ts``).
 
 Validation is intentionally light (length bounds, enums); HubSpot itself
 is the source of truth for property values.
->>>>>>> origin/develop
 """
 
 from __future__ import annotations
 
-<<<<<<< HEAD
-from typing import Literal
-=======
 from typing import Any, Literal
->>>>>>> origin/develop
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,17 +27,6 @@ OnsiteOffshoreType = Literal["Onsite", "Offshore", "Onsite+Offshore"]
 
 
 class HubSpotDealDraft(BaseModel):
-<<<<<<< HEAD
-    """User-submitted deal draft from the in-chat form (case 2)."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    deal_name: str | None = Field(default=None, alias="dealName", max_length=500)
-    pipeline: str | None = Field(default=None, max_length=200)
-    market: DealMarket | None = None
-    jp_section_lead: str | None = Field(default=None, alias="jpSectionLead", max_length=200)
-    status: DealStatus | None = None
-=======
     """User-submitted deal draft from the in-chat form."""
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
@@ -81,7 +59,6 @@ class HubSpotDealDraft(BaseModel):
     service_level: str | None = Field(default=None, alias="serviceLevel", max_length=200)
 
     # Section 5 — Delivery model
->>>>>>> origin/develop
     onsite_offshore_type: OnsiteOffshoreType | None = Field(default=None, alias="onsiteOffshoreType")
     onsite_unit_price: str | None = Field(default=None, alias="onsiteUnitPrice", max_length=200)
     offshore_unit_price: str | None = Field(default=None, alias="offshoreUnitPrice", max_length=200)
@@ -89,25 +66,12 @@ class HubSpotDealDraft(BaseModel):
         default=None,
         alias="onsiteDeliveryTeam",
         max_length=50,
-<<<<<<< HEAD
-        description="At most 50 entries; each string trimmed by client.",
-=======
->>>>>>> origin/develop
     )
     offshore_delivery_team: list[str] | None = Field(
         default=None,
         alias="offshoreDeliveryTeam",
         max_length=50,
     )
-<<<<<<< HEAD
-    year_of_pipeline: str | None = Field(default=None, alias="yearOfPipeline", max_length=50)
-    owner: str | None = Field(default=None, max_length=200)
-    deal_sub_owner: str | None = Field(default=None, alias="dealSubOwner", max_length=200)
-
-
-class HubSpotDealCreateResponse(BaseModel):
-    """Result after accepting draft (HubSpot create is stubbed until integration)."""
-=======
 
     # Section 6 — Financial
     payment_period_months: str | None = Field(default=None, alias="paymentPeriodMonths", max_length=50)
@@ -121,7 +85,6 @@ class HubSpotDealCreateResponse(BaseModel):
 
 class HubSpotDealCreateResponse(BaseModel):
     """Result after creating a deal in HubSpot."""
->>>>>>> origin/develop
 
     model_config = ConfigDict(extra="forbid")
 
@@ -131,9 +94,6 @@ class HubSpotDealCreateResponse(BaseModel):
         description="HubSpot deal id when integration succeeds.",
         examples=["123456789"],
     )
-<<<<<<< HEAD
-    message: str = Field(default="", examples=["Deal created (stub)"])
-=======
     message: str = Field(default="", examples=["Deal created successfully"])
 
 
@@ -238,4 +198,3 @@ class HubSpotDealSearchResponse(BaseModel):
     total: int = 0
     results: list[HubSpotDealSearchResult] = Field(default_factory=list)
     paging: dict[str, Any] | None = None
->>>>>>> origin/develop

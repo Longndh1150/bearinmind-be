@@ -43,7 +43,7 @@ fastapi dev app/main.py
   Keep the default `venv + pip` flow above if you prefer. If you use `uv`, the typical workflow is:
 
 ```bash
-# Create/refresh the environment from pyproject/uv.lock
+# Create/refresh the environment from pyproject/uv.lock 
 uv sync
 
 # Add a dependency (updates pyproject + lock)

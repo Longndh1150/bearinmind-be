@@ -101,55 +101,66 @@ async def update_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user),
 ) -> UnitPublic:
-    # Truy vấn Chroma thay vì PG để validate tồn tại
+    # Truy vấn Chroma
     chroma_unit = get_unit_by_id(str(unit_id))
     if not chroma_unit:
         raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
     
-    # Update relational state as Source of Truth
-    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
-        
-    # Append tech stack
-    existing_tech = unit.tech_stack or []
-    new_tech = [t for t in payload.tech_stack if t not in existing_tech]
-    unit.tech_stack = existing_tech + new_tech
+    meta = chroma_unit.metadata
     
-    # Append experts based on uniqueness
-    existing_expert_names = {e.name for e in unit.experts}
+    # Append tech stack
+    import json
+    existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
+    new_tech = [t for t in payload.tech_stack if t not in existing_tech]
+    merged_tech = existing_tech + new_tech
+    
+    # Append experts
+    experts_json_str = meta.get("experts_json", "[]")
+    try:
+        experts_list = json.loads(experts_json_str)
+    except Exception:
+        experts_list = []
+    existing_expert_names = {e.get("name") for e in experts_list}
     for ex in payload.experts:
         if ex.name not in existing_expert_names:
-            unit.experts.append(UnitExpert(name=ex.name, focus_areas=ex.focus_areas, profile_url=str(ex.profile_url) if ex.profile_url else None))
+            experts_list.append({"name": ex.name, "focus_areas": ex.focus_areas, "profile_url": str(ex.profile_url) if ex.profile_url else None})
             
-    # Append case studies based on uniqueness
-    existing_cs_titles = {cs.title for cs in unit.case_studies}
+    # Append case studies
+    case_studies_json_str = meta.get("case_studies_json", "[]")
+    try:
+        case_studies_list = json.loads(case_studies_json_str)
+    except Exception:
+        case_studies_list = []
+    existing_cs_titles = {cs.get("title") for cs in case_studies_list}
     for cs in payload.case_studies:
         if cs.title not in existing_cs_titles:
-            unit.case_studies.append(UnitCaseStudy(title=cs.title, domain=cs.domain, tech_stack=cs.tech_stack, url=str(cs.url) if cs.url else None))
+            case_studies_list.append({"title": cs.title, "domain": cs.domain, "tech_stack": cs.tech_stack, "url": str(cs.url) if cs.url else None})
             
-    # Append notes
-    if payload.notes:
-        if unit.notes:
-            unit.notes += f"\n{payload.notes}"
-        else:
-            unit.notes = payload.notes
-            
-    unit.capabilities_updated_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(unit)
+    # Re-index to ChromaDB directly
+    from app.ai.tools.vector_search import index_unit
+    case_studies_text = " ".join([f"{cs.get('title')}. {cs.get('domain') or ''}" for cs in case_studies_list])
+    case_study_titles = [cs.get("title") for cs in case_studies_list]
     
-    # Integrations & Reindexing hook
+    index_unit(
+        unit_id=str(unit_id),
+        unit_name=meta.get("unit_name", "Unknown"),
+        tech_stack=merged_tech,
+        case_studies=case_studies_text,
+        case_study_titles=case_study_titles,
+        contact_name=meta.get("contact_name", ""),
+        contact_email=meta.get("contact_email", ""),
+        experts_json=json.dumps(experts_list),
+        case_studies_json=json.dumps(case_studies_list),
+    )
+    
+    # Integrations
     await get_available_staff(str(unit_id))
     await get_unit_capacity(str(unit_id))
     await get_case_studies(str(unit_id))
-    await reindex_unit(str(unit.id))
     
-    # Re-fetch from ChromaDB after sync to ensure we are returning Chroma's state
+    # Re-fetch from ChromaDB after sync
     updated_chroma_unit = get_unit_by_id(str(unit_id))
-    if updated_chroma_unit:
-        return _chroma_to_unit_public(updated_chroma_unit)
-    return _to_unit_public(unit)  # Fallback
+    return _chroma_to_unit_public(updated_chroma_unit)
 
 @router.delete("/{unit_id}/capabilities", status_code=status.HTTP_200_OK, summary="Clear particular or all capabilities")
 async def clear_capabilities(
@@ -158,34 +169,45 @@ async def clear_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ):
-    """
-    Xóa capabilities của một unit. Nếu có tech_to_remove thì chỉ xóa mỗi công nghệ đó.
-    """
     chroma_unit = get_unit_by_id(str(unit_id))
     if not chroma_unit:
         raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
         
-    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
-        
+    meta = chroma_unit.metadata
+    
+    from app.ai.tools.vector_search import index_unit
+    import json
+    
     if tech_to_remove:
-        if unit.tech_stack and tech_to_remove in unit.tech_stack:
-            unit.tech_stack = [t for t in unit.tech_stack if t != tech_to_remove]
+        existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
+        if tech_to_remove in existing_tech:
+            existing_tech = [t for t in existing_tech if t != tech_to_remove]
+        
+        index_unit(
+            unit_id=str(unit_id),
+            unit_name=meta.get("unit_name", "Unknown"),
+            tech_stack=existing_tech,
+            case_studies=chroma_unit.document,
+            case_study_titles=meta.get("case_study_titles", "").split("|") if meta.get("case_study_titles") else [],
+            contact_name=meta.get("contact_name", ""),
+            contact_email=meta.get("contact_email", ""),
+            experts_json=meta.get("experts_json", "[]"),
+            case_studies_json=meta.get("case_studies_json", "[]"),
+        )
         msg = f"Capability '{tech_to_remove}' cleared"
     else:
-        unit.tech_stack = []
-        # Clear relationships via SQLAlchemy
-        for ex in list(unit.experts):
-            await session.delete(ex)
-        for cs in list(unit.case_studies):
-            await session.delete(cs)
-        unit.notes = None
+        index_unit(
+            unit_id=str(unit_id),
+            unit_name=meta.get("unit_name", "Unknown"),
+            tech_stack=[],
+            case_studies="",
+            case_study_titles=[],
+            contact_name=meta.get("contact_name", ""),
+            contact_email=meta.get("contact_email", ""),
+            experts_json="[]",
+            case_studies_json="[]",
+        )
         msg = "Capabilities cleared completely"
-    
-    unit.capabilities_updated_at = datetime.now(UTC)
-    await session.commit()
-    await reindex_unit(str(unit.id))
     
     return {"message": msg, "unit_id": unit_id}
 

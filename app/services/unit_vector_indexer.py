@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.db.session import async_sessionmaker
+from app.db.session import AsyncSessionLocal
 from app.models.unit import Unit
 from app.ai.tools.vector_search import index_unit
 
@@ -18,7 +18,7 @@ async def reindex_unit(unit_id: str) -> None:
     """
     logger.info(f"Triggering asynchronous vector re-indexing for unit: {unit_id}")
     
-    async with async_sessionmaker() as session:
+    async with AsyncSessionLocal() as session:
         unit = await session.get(
             Unit, 
             UUID(unit_id), 

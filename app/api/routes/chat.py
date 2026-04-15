@@ -36,6 +36,7 @@ from app.schemas.context import (
     DetectedLanguage,
     SessionMeta,
 )
+from app.services.update_capabilities_service import handle_update_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +253,7 @@ def _handle_request_deal_form(
     )
 
 
+<<<<<<< HEAD
 def _handle_update_capabilities(
     ctx: ConversationContext,
     conv_id: UUID,
@@ -269,6 +271,9 @@ def _handle_update_capabilities(
 
 
 # ── Core chat turn (shared by POST /chat and POST /chat/{id}) ─────────────────
+=======
+# ── Conversation CRUD ──────────────────────────────────────────────────────────
+>>>>>>> 7ddbb55 (hrm update)
 
 
 async def _process_chat_turn(
@@ -365,7 +370,7 @@ async def _process_chat_turn(
         answer_text = response.answer
 
     elif intent == ChatIntent.update_capabilities:
-        response = _handle_update_capabilities(ctx, conv_id)
+        response = await handle_update_capabilities(ctx, conv_id, payload.message)
         response = response.model_copy(update={"context": ctx})
         answer_text = response.answer
 

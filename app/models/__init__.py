@@ -3,6 +3,7 @@ from app.models.notification import Notification
 from app.models.opportunity import Opportunity
 from app.models.unit import Unit, UnitCaseStudy, UnitExpert
 from app.models.user import User
+from app.models.user_microsoft import UserMicrosoft
 
 __all__ = [
     "Conversation",
@@ -14,4 +15,5 @@ __all__ = [
     "UnitCaseStudy",
     "UnitExpert",
     "User",
+    "UserMicrosoft",
 ]

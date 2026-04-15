@@ -36,6 +36,7 @@ from app.schemas.context import (
     DetectedLanguage,
     SessionMeta,
 )
+from app.services.update_capabilities_service import handle_update_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -249,22 +250,6 @@ def _handle_request_deal_form(
         answer=answer,
         # FE reads this action to know it should open the deal form
         suggested_actions=["submit_deal_form"],
-    )
-
-
-def _handle_update_capabilities(
-    ctx: ConversationContext,
-    conv_id: UUID,
-) -> ChatResponse:
-    """Stub for US3 capabilities update flow."""
-    if ctx.language == DetectedLanguage.vi:
-        answer = "Tính năng cập nhật capabilities đang được phát triển. Vui lòng sử dụng API PUT /units/{id}/capabilities."
-    else:
-        answer = "The capabilities update feature is coming soon. Please use the API PUT /units/{id}/capabilities."
-    return ChatResponse(
-        conversation_id=conv_id,
-        answer=answer,
-        suggested_actions=[],
     )
 
 
@@ -497,7 +482,7 @@ async def chat(
         answer_text = response.answer
 
     elif intent == ChatIntent.update_capabilities:
-        response = _handle_update_capabilities(ctx, conv_id)
+        response = await handle_update_capabilities(ctx, conv_id, payload.message)
         response = response.model_copy(update={"context": ctx})
         answer_text = response.answer
 

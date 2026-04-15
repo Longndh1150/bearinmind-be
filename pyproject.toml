@@ -1,6 +1,10 @@
 [project]
 name = "bearinmind-be"
+<<<<<<< HEAD
 version = "0.1.6"
+=======
+version = "0.2.0"
+>>>>>>> origin/develop
 description = "Bear In Mind — Backend & AI"
 readme = "README.md"
 requires-python = ">=3.13"

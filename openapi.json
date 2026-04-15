@@ -53,8 +53,14 @@
         "title": "ChatMessage",
         "type": "object"
       },
+<<<<<<< HEAD
       "ChatRequest": {
         "additionalProperties": false,
+=======
+      "ChatMessageRequest": {
+        "additionalProperties": false,
+        "description": "Body for POST /chat/{conversation_id} — send a new user message in an existing conversation.",
+>>>>>>> origin/develop
         "properties": {
           "allow_crm_write": {
             "default": false,
@@ -62,6 +68,7 @@
             "title": "Allow Crm Write",
             "type": "boolean"
           },
+<<<<<<< HEAD
           "conversation_id": {
             "anyOf": [
               {
@@ -75,6 +82,8 @@
             "description": "If provided, continues an existing conversation; otherwise server creates one.",
             "title": "Conversation Id"
           },
+=======
+>>>>>>> origin/develop
           "history": {
             "description": "Optional recent chat history for stateless clients; server may ignore if it stores history.",
             "items": {
@@ -96,7 +105,11 @@
         "required": [
           "message"
         ],
+<<<<<<< HEAD
         "title": "ChatRequest",
+=======
+        "title": "ChatMessageRequest",
+>>>>>>> origin/develop
         "type": "object"
       },
       "ChatResponse": {
@@ -383,7 +396,11 @@
       },
       "ConversationMessagePublic": {
         "additionalProperties": false,
+<<<<<<< HEAD
         "description": "Single chat turn as returned by GET /chat/conversations/{id}.",
+=======
+        "description": "Single chat turn as returned by GET /chat/{conversation_id}.",
+>>>>>>> origin/develop
         "properties": {
           "content": {
             "title": "Content",
@@ -516,6 +533,40 @@
         "title": "DevActionResult",
         "type": "object"
       },
+<<<<<<< HEAD
+=======
+      "DevSmokeResult": {
+        "description": "Minimal health check for external APIs (no secrets in response).",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Short diagnostic (e.g. model name, counts). Never includes API keys.",
+            "title": "Detail"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "DevSmokeResult",
+        "type": "object"
+      },
+>>>>>>> origin/develop
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -529,9 +580,49 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+<<<<<<< HEAD
       "HubSpotDealCreateResponse": {
         "additionalProperties": false,
         "description": "Result after accepting draft (HubSpot create is stubbed until integration).",
+=======
+      "HubSpotBootstrapResponse": {
+        "additionalProperties": false,
+        "description": "Single round-trip for deal form: pipelines + form-field properties + users.\n\nAligns with FE note to bundle metadata when opening HubSpot flow.",
+        "properties": {
+          "pipelines": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotPipeline"
+            },
+            "title": "Pipelines",
+            "type": "array"
+          },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotProperty"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotUser"
+            },
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pipelines",
+          "properties",
+          "users"
+        ],
+        "title": "HubSpotBootstrapResponse",
+        "type": "object"
+      },
+      "HubSpotDealCreateResponse": {
+        "additionalProperties": false,
+        "description": "Result after creating a deal in HubSpot.",
+>>>>>>> origin/develop
         "properties": {
           "hubspot_deal_id": {
             "anyOf": [
@@ -551,7 +642,11 @@
           "message": {
             "default": "",
             "examples": [
+<<<<<<< HEAD
               "Deal created (stub)"
+=======
+              "Deal created successfully"
+>>>>>>> origin/develop
             ],
             "title": "Message",
             "type": "string"
@@ -566,9 +661,39 @@
         "type": "object"
       },
       "HubSpotDealDraft": {
+<<<<<<< HEAD
         "additionalProperties": false,
         "description": "User-submitted deal draft from the in-chat form (case 2).",
         "properties": {
+=======
+        "additionalProperties": true,
+        "description": "User-submitted deal draft from the in-chat form.",
+        "properties": {
+          "closeDate": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closedate"
+          },
+          "contractType": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contracttype"
+          },
+>>>>>>> origin/develop
           "dealName": {
             "anyOf": [
               {
@@ -593,6 +718,45 @@
             ],
             "title": "Dealsubowner"
           },
+<<<<<<< HEAD
+=======
+          "dealType": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dealtype"
+          },
+          "eaSectionLead": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Easectionlead"
+          },
+          "jpDeliveryManager": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jpdeliverymanager"
+          },
+>>>>>>> origin/develop
           "jpSectionLead": {
             "anyOf": [
               {
@@ -605,6 +769,45 @@
             ],
             "title": "Jpsectionlead"
           },
+<<<<<<< HEAD
+=======
+          "krSectionLead": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Krsectionlead"
+          },
+          "linkedCompany": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedcompany"
+          },
+          "linkedCompanyLabel": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedcompanylabel"
+          },
+>>>>>>> origin/develop
           "market": {
             "anyOf": [
               {
@@ -663,7 +866,10 @@
                 "type": "null"
               }
             ],
+<<<<<<< HEAD
             "description": "At most 50 entries; each string trimmed by client.",
+=======
+>>>>>>> origin/develop
             "title": "Onsitedeliveryteam"
           },
           "onsiteOffshoreType": {
@@ -706,6 +912,21 @@
             ],
             "title": "Owner"
           },
+<<<<<<< HEAD
+=======
+          "paymentPeriodMonths": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentperiodmonths"
+          },
+>>>>>>> origin/develop
           "pipeline": {
             "anyOf": [
               {
@@ -718,6 +939,69 @@
             ],
             "title": "Pipeline"
           },
+<<<<<<< HEAD
+=======
+          "presales": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presales"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "serviceCategory": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Servicecategory"
+          },
+          "serviceItoSubCategory": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serviceitosubcategory"
+          },
+          "serviceLevel": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Servicelevel"
+          },
+>>>>>>> origin/develop
           "status": {
             "anyOf": [
               {
@@ -739,6 +1023,36 @@
             ],
             "title": "Status"
           },
+<<<<<<< HEAD
+=======
+          "thSectionLead": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thsectionlead"
+          },
+          "usSectionLead": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ussectionlead"
+          },
+>>>>>>> origin/develop
           "yearOfPipeline": {
             "anyOf": [
               {
@@ -755,6 +1069,361 @@
         "title": "HubSpotDealDraft",
         "type": "object"
       },
+<<<<<<< HEAD
+=======
+      "HubSpotDealSearchResponse": {
+        "properties": {
+          "paging": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paging"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotDealSearchResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "HubSpotDealSearchResponse",
+        "type": "object"
+      },
+      "HubSpotDealSearchResult": {
+        "additionalProperties": true,
+        "properties": {
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Createdat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "title": "Properties",
+            "type": "object"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "HubSpotDealSearchResult",
+        "type": "object"
+      },
+      "HubSpotDealUpdateResponse": {
+        "additionalProperties": false,
+        "description": "Result after updating a deal in HubSpot.",
+        "properties": {
+          "hubspot_deal_id": {
+            "title": "Hubspot Deal Id",
+            "type": "string"
+          },
+          "message": {
+            "default": "",
+            "examples": [
+              "Deal updated successfully"
+            ],
+            "title": "Message",
+            "type": "string"
+          },
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hubspot_deal_id"
+        ],
+        "title": "HubSpotDealUpdateResponse",
+        "type": "object"
+      },
+      "HubSpotPipeline": {
+        "additionalProperties": true,
+        "properties": {
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "displayOrder": {
+            "default": 0,
+            "title": "Displayorder",
+            "type": "integer"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "pipelineId": {
+            "default": "",
+            "title": "Pipelineid",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotPipelineStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "title": "HubSpotPipeline",
+        "type": "object"
+      },
+      "HubSpotPipelineStage": {
+        "additionalProperties": true,
+        "properties": {
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "displayOrder": {
+            "default": 0,
+            "title": "Displayorder",
+            "type": "integer"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "stageId": {
+            "default": "",
+            "title": "Stageid",
+            "type": "string"
+          }
+        },
+        "title": "HubSpotPipelineStage",
+        "type": "object"
+      },
+      "HubSpotPipelinesResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotPipeline"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "HubSpotPipelinesResponse",
+        "type": "object"
+      },
+      "HubSpotPropertiesResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotProperty"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "HubSpotPropertiesResponse",
+        "type": "object"
+      },
+      "HubSpotProperty": {
+        "additionalProperties": true,
+        "properties": {
+          "calculated": {
+            "default": false,
+            "title": "Calculated",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "fieldType": {
+            "default": "text",
+            "title": "Fieldtype",
+            "type": "string"
+          },
+          "formField": {
+            "default": false,
+            "title": "Formfield",
+            "type": "boolean"
+          },
+          "groupName": {
+            "default": "",
+            "title": "Groupname",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "modificationMetadata": {
+            "additionalProperties": true,
+            "title": "Modificationmetadata",
+            "type": "object"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotPropertyOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "type": {
+            "default": "",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "HubSpotProperty",
+        "type": "object"
+      },
+      "HubSpotPropertyOption": {
+        "additionalProperties": true,
+        "properties": {
+          "displayOrder": {
+            "default": 0,
+            "title": "Displayorder",
+            "type": "integer"
+          },
+          "hidden": {
+            "default": false,
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "title": "HubSpotPropertyOption",
+        "type": "object"
+      },
+      "HubSpotUser": {
+        "additionalProperties": true,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Email"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Firstname"
+          },
+          "id": {
+            "default": "",
+            "title": "Id",
+            "type": "string"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Lastname"
+          }
+        },
+        "title": "HubSpotUser",
+        "type": "object"
+      },
+      "HubSpotUsersResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/HubSpotUser"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "HubSpotUsersResponse",
+        "type": "object"
+      },
+>>>>>>> origin/develop
       "MatchRationale": {
         "additionalProperties": false,
         "properties": {
@@ -2282,7 +2951,11 @@
   },
   "info": {
     "title": "Bear In Mind API",
+<<<<<<< HEAD
     "version": "0.1.6"
+=======
+    "version": "0.1.7"
+>>>>>>> origin/develop
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2369,14 +3042,53 @@
       }
     },
     "/api/v1/chat": {
+<<<<<<< HEAD
       "post": {
         "description": "Intent-aware chat endpoint. Step 0: context analysis (intent + language detection). Step 1+: route to the appropriate flow based on intent — find_units → matching pipeline, save_draft → opportunity service, request_deal_form → show HubSpot form, update_capabilities → US3 agent, chitchat/clarify → lightweight reply. Persists session context (language, last_intent) on the conversation. Falls back to stub when LLM_API_KEY is not set.",
         "operationId": "chat_api_v1_chat_post",
+=======
+      "get": {
+        "description": "Returns conversations for the current user, most recently updated first.",
+        "operationId": "list_conversations_api_v1_chat_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response List Conversations Api V1 Chat Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List conversations",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "description": "Creates a new conversation, processes `first_message` through the same intent-aware pipeline as POST /chat/{conversation_id}, persists messages, and generates a conversation title from the first message (secondary LLM). Returns `ChatResponse` with `conversation_id` for subsequent turns.",
+        "operationId": "create_conversation_and_chat_api_v1_chat_post",
+>>>>>>> origin/develop
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
+<<<<<<< HEAD
                 "$ref": "#/components/schemas/ChatRequest"
+=======
+                "$ref": "#/components/schemas/ConversationCreate"
+>>>>>>> origin/develop
               }
             }
           },
@@ -2409,13 +3121,21 @@
             "HTTPBearer": []
           }
         ],
+<<<<<<< HEAD
         "summary": "Chat with AI assistant",
+=======
+        "summary": "Create conversation and send first message",
+>>>>>>> origin/develop
         "tags": [
           "chat"
         ]
       }
     },
+<<<<<<< HEAD
     "/api/v1/chat/conversations": {
+=======
+    "/api/v1/chat/{conversation_id}": {
+>>>>>>> origin/develop
       "get": {
         "description": "Returns conversations ordered by most recently updated, newest first.",
         "operationId": "list_conversations_api_v1_chat_conversations_get",
@@ -2534,10 +3254,225 @@
             "HTTPBearer": []
           }
         ],
+<<<<<<< HEAD
         "summary": "Get conversation history",
         "tags": [
           "chat"
         ]
+=======
+        "summary": "Get messages for a conversation",
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "description": "Intent-aware chat: same pipeline as POST /chat but for an existing `conversation_id` (path). Persists user + assistant turns and session context.",
+        "operationId": "send_message_in_conversation_api_v1_chat__conversation_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send a message in an existing conversation",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/seed": {
+      "post": {
+        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
+        "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Seed ChromaDB with sample units",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units": {
+      "delete": {
+        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
+        "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Reset ChromaDB — delete ALL units",
+        "tags": [
+          "dev"
+        ]
+      },
+      "get": {
+        "description": "Returns every document currently indexed in the unit_capabilities collection. Disabled in production.",
+        "operationId": "dev_list_chroma_units_api_v1_dev_chroma_units_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChromaCollectionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] List all units in ChromaDB",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/chroma/units/{unit_id}": {
+      "delete": {
+        "description": "Removes one unit by its Chroma ID. Disabled in production.",
+        "operationId": "dev_delete_chroma_unit_api_v1_dev_chroma_units__unit_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[DEV] Delete a single unit from ChromaDB",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/smoke/hubspot": {
+      "get": {
+        "description": "Calls HubSpot ``GET /settings/v3/users`` and returns user count. Use to verify HUBSPOT_API_KEY. Disabled in production.",
+        "operationId": "dev_smoke_hubspot_api_v1_dev_smoke_hubspot_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSmokeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Smoke test HubSpot API key",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/smoke/llm": {
+      "get": {
+        "description": "Calls the configured OpenAI-compatible API with a one-token style prompt. Use to verify LLM_API_KEY and LLM_BASE_URL without going through chat. Disabled in production.",
+        "operationId": "dev_smoke_llm_api_v1_dev_smoke_llm_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSmokeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "[DEV] Smoke test LLM API key",
+        "tags": [
+          "dev"
+        ]
+>>>>>>> origin/develop
       }
     },
     "/api/v1/dev/chroma/seed": {
@@ -2670,10 +3605,146 @@
         ]
       }
     },
+<<<<<<< HEAD
     "/api/v1/hubspot/deals": {
       "post": {
         "description": "Accepts the same JSON shape as the frontend `DealDraft` (camelCase keys). HubSpot integration can be wired later; this endpoint validates shape and returns a stub id.",
         "operationId": "create_deal_from_draft_api_v1_hubspot_deals_post",
+=======
+    "/api/v1/hubspot/bootstrap": {
+      "get": {
+        "description": "Bundles the three metadata calls used to render the HubSpot deal form: pipelines, deal properties filtered to ``formField=true``, and users.",
+        "operationId": "get_hubspot_bootstrap_api_v1_hubspot_bootstrap_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotBootstrapResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get pipelines + form-field properties + users (one round-trip)",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/hubspot/deals": {
+      "get": {
+        "operationId": "search_deals_api_v1_hubspot_deals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Cursor for pagination",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor for pagination",
+              "title": "After"
+            }
+          },
+          {
+            "description": "Filter by deal stage",
+            "in": "query",
+            "name": "dealstage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by deal stage",
+              "title": "Dealstage"
+            }
+          },
+          {
+            "description": "Filter by pipeline ID",
+            "in": "query",
+            "name": "pipeline",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by pipeline ID",
+              "title": "Pipeline"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotDealSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search / list HubSpot deals (US6 prep)",
+        "tags": [
+          "hubspot"
+        ]
+      },
+      "post": {
+        "description": "Accepts the same JSON shape as the frontend ``DealDraft`` (camelCase keys). Maps fields to HubSpot property names and creates the deal via the HubSpot API.",
+        "operationId": "create_deal_api_v1_hubspot_deals_post",
+>>>>>>> origin/develop
         "requestBody": {
           "content": {
             "application/json": {
@@ -2711,7 +3782,217 @@
             "HTTPBearer": []
           }
         ],
+<<<<<<< HEAD
         "summary": "Create HubSpot deal from form draft",
+=======
+        "summary": "Create a HubSpot deal from form draft",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/hubspot/deals/{deal_id}": {
+      "get": {
+        "operationId": "get_deal_api_v1_hubspot_deals__deal_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deal_id",
+            "required": true,
+            "schema": {
+              "title": "Deal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Deal Api V1 Hubspot Deals  Deal Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get a single HubSpot deal by ID",
+        "tags": [
+          "hubspot"
+        ]
+      },
+      "patch": {
+        "operationId": "update_deal_api_v1_hubspot_deals__deal_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deal_id",
+            "required": true,
+            "schema": {
+              "title": "Deal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSpotDealDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotDealUpdateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update an existing HubSpot deal",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/hubspot/pipelines": {
+      "get": {
+        "operationId": "get_pipelines_api_v1_hubspot_pipelines_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotPipelinesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get deal pipelines from HubSpot",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/hubspot/properties/deals": {
+      "get": {
+        "operationId": "get_deal_properties_api_v1_hubspot_properties_deals_get",
+        "parameters": [
+          {
+            "description": "If true, return only properties with formField=true (deal form fields).",
+            "in": "query",
+            "name": "form_field_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "If true, return only properties with formField=true (deal form fields).",
+              "title": "Form Field Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotPropertiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get deal property metadata from HubSpot",
+        "tags": [
+          "hubspot"
+        ]
+      }
+    },
+    "/api/v1/hubspot/users": {
+      "get": {
+        "operationId": "get_users_api_v1_hubspot_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubSpotUsersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get HubSpot users (for owner / sub-owner fields)",
+>>>>>>> origin/develop
         "tags": [
           "hubspot"
         ]
@@ -2839,7 +4120,11 @@
     },
     "/api/v1/opportunities": {
       "get": {
+<<<<<<< HEAD
         "description": "US6: returns a consolidated list; v1 can start with local DB only.",
+=======
+        "description": "US6: returns a consolidated list; currently local DB.",
+>>>>>>> origin/develop
         "operationId": "list_opportunities_api_v1_opportunities_get",
         "parameters": [
           {
@@ -2899,6 +4184,7 @@
           },
           {
             "in": "query",
+<<<<<<< HEAD
             "name": "unit_id",
             "required": false,
             "schema": {
@@ -2916,6 +4202,8 @@
           },
           {
             "in": "query",
+=======
+>>>>>>> origin/develop
             "name": "q",
             "required": false,
             "schema": {

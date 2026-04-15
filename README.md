@@ -13,7 +13,11 @@ API and AI layer for **Bear In Mind**: an LLM-assisted system that matches sales
 
 ```bash
 # Python version
+<<<<<<< HEAD
 # - `pyproject.toml` requires Python >= 3.13 
+=======
+# - `pyproject.toml` requires Python >= 3.13
+>>>>>>> origin/develop
 # - If you're using `pip + venv`, make sure your `python` points to 3.13+
 python -m venv .venv
 # Windows: .venv\Scripts\activate
@@ -43,7 +47,11 @@ fastapi dev app/main.py
   Keep the default `venv + pip` flow above if you prefer. If you use `uv`, the typical workflow is:
 
 ```bash
+<<<<<<< HEAD
 # Create/refresh the environment from pyproject/uv.lock
+=======
+# Create/refresh the environment from pyproject/uv.lock 
+>>>>>>> origin/develop
 uv sync
 
 # Add a dependency (updates pyproject + lock)

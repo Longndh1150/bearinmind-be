@@ -16,7 +16,8 @@ from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, Un
 
 from app.services.hrm_client import get_available_staff, get_unit_capacity
 from app.services.case_study_client import get_case_studies
-from app.ai.tools.vector_search import reindex_unit, get_all_units, get_unit_by_id, VectorSearchResult, search_units
+from app.services.unit_vector_indexer import reindex_unit
+from app.ai.tools.vector_search import get_all_units, get_unit_by_id, VectorSearchResult, search_units
 
 router = APIRouter(prefix="/units", tags=["units"])
 

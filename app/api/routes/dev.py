@@ -6,13 +6,17 @@ Useful during development and demo setup. Never enable in production.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection
 from app.core.config import settings
+from app.integrations.hubspot_client import HubSpotAPIError
+from app.services import hubspot_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,19 @@ class DevActionResult(BaseModel):
     action: str
     affected: int
     message: str
+
+
+class DevSmokeResult(BaseModel):
+    """Minimal health check for external APIs (no secrets in response)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ok: bool
+    message: str
+    detail: str | None = Field(
+        default=None,
+        description="Short diagnostic (e.g. model name, counts). Never includes API keys.",
+    )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -206,4 +223,80 @@ def dev_seed_chroma() -> DevActionResult:
         action="seed_chroma",
         affected=len(SEED_UNITS),
         message=f"Seeded {len(SEED_UNITS)} unit(s) into '{COLLECTION_NAME}' (upserted).",
+    )
+
+
+def _smoke_llm_sync() -> DevSmokeResult:
+    """Blocking LLM ping (runs in a thread pool from async route)."""
+    if not (settings.llm_api_key or "").strip():
+        return DevSmokeResult(ok=False, message="LLM_API_KEY is not set or empty.", detail=None)
+
+    kwargs: dict = {"api_key": settings.llm_api_key}
+    if settings.llm_base_url:
+        kwargs["base_url"] = settings.llm_base_url
+    client = OpenAI(**kwargs)
+    try:
+        resp = client.chat.completions.create(
+            model=settings.llm_model_secondary,
+            messages=[{"role": "user", "content": "Reply with exactly: ok"}],
+            max_tokens=8,
+            temperature=0,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+    except Exception as exc:
+        logger.warning("LLM smoke failed: %s", exc)
+        return DevSmokeResult(ok=False, message="LLM request failed.", detail=str(exc)[:400])
+
+    return DevSmokeResult(
+        ok=True,
+        message="LLM API key works.",
+        detail=f"model={settings.llm_model_secondary!r}, reply={text!r}",
+    )
+
+
+@router.get(
+    "/smoke/llm",
+    response_model=DevSmokeResult,
+    summary="[DEV] Smoke test LLM API key",
+    description=(
+        "Calls the configured OpenAI-compatible API with a one-token style prompt. "
+        "Use to verify LLM_API_KEY and LLM_BASE_URL without going through chat. "
+        "Disabled in production."
+    ),
+)
+async def dev_smoke_llm() -> DevSmokeResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_llm_sync)
+
+
+@router.get(
+    "/smoke/hubspot",
+    response_model=DevSmokeResult,
+    summary="[DEV] Smoke test HubSpot API key",
+    description=(
+        "Calls HubSpot ``GET /settings/v3/users`` and returns user count. "
+        "Use to verify HUBSPOT_API_KEY. Disabled in production."
+    ),
+)
+async def dev_smoke_hubspot() -> DevSmokeResult:
+    _guard_non_production()
+    if not (settings.hubspot_api_key or "").strip():
+        return DevSmokeResult(ok=False, message="HUBSPOT_API_KEY is not set or empty.", detail=None)
+    try:
+        users = await hubspot_service.fetch_users()
+    except HubSpotAPIError as exc:
+        logger.warning("HubSpot smoke failed: %s", exc)
+        return DevSmokeResult(
+            ok=False,
+            message="HubSpot request failed (check key and scopes).",
+            detail=str(exc)[:400],
+        )
+    except Exception as exc:
+        logger.exception("HubSpot smoke unexpected error")
+        return DevSmokeResult(ok=False, message="HubSpot request failed.", detail=str(exc)[:400])
+
+    return DevSmokeResult(
+        ok=True,
+        message="HubSpot API key works.",
+        detail=f"users_fetched={len(users)}",
     )

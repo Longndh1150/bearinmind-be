@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
-
+import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.context import ConversationContext
@@ -182,6 +182,14 @@ class MatchedUnit(BaseModel):
 class ChatResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    message_id: UUID | None = Field(
+        default=None,
+        description="The ID of the assistant's message in the database. Needed by the FE.",
+    )
+    user_message_id: UUID | None = Field(
+        default=None,
+        description="The ID of the user's message in the database.",
+    )
     conversation_id: UUID
     answer: str = Field(min_length=1, max_length=20_000)
 

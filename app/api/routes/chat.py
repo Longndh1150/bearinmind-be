@@ -270,109 +270,108 @@ async def _process_chat_turn(
     prior_messages = list(msgs_result.scalars().all())
     history = _build_history_for_context(prior_messages)
 
+    user_msg_id = uuid4()
+    assistant_msg_id = uuid4()
+
     user_msg = ConversationMessage(
+        id=user_msg_id,
         conversation_id=conv_id,
         role="user",
         content=message,
+        ui_payload={},
     )
     session.add(user_msg)
 
+    response: ChatResponse | None = None
+
     if not settings.llm_api_key:
         logger.debug("LLM_API_KEY not set — returning stub chat response")
-        await session.commit()
-        return _stub_response(conv_id)
-
-    session_meta = _load_session_meta(conv)
-    try:
-        ctx: ConversationContext = analyze_context(
-            message=message,
-            history=history,
-            session_meta=session_meta,
-        )
-    except Exception:
-        logger.exception("Context analysis failed; falling back to stub")
-        await session.commit()
-        return _stub_response(conv_id)
-
-    session_meta.language = ctx.language
-    session_meta.last_intent = ctx.intent
-    _save_session_meta(conv, session_meta)
-
-    logger.info(
-        "conv=%s intent=%s lang=%s confidence=%.2f",
-        conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
-    )
-
-    answer_text: str
-    response: ChatResponse
-
-    intent = ctx.intent
-
-    if intent == ChatIntent.find_units:
+        response = _stub_response(conv_id)
+    else:
+        session_meta = _load_session_meta(conv)
         try:
-            extracted, matched_units, suggestions, answer_text = run_matching(
+            ctx: ConversationContext = analyze_context(
                 message=message,
-                language=ctx.language,
+                history=history,
+                session_meta=session_meta,
             )
+            session_meta.language = ctx.language
+            session_meta.last_intent = ctx.intent
+            _save_session_meta(conv, session_meta)
+
+            logger.info(
+                "conv=%s intent=%s lang=%s confidence=%.2f",
+                conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
+            )
+
+            intent = ctx.intent
+
+            if intent == ChatIntent.find_units:
+                try:
+                    extracted, matched_units, suggestions, answer_text = run_matching(
+                        message=message,
+                        language=ctx.language,
+                    )
+                    analysis_card = _build_analysis_card(extracted.title, suggestions, ctx.language)
+                    unit_count = len(matched_units)
+
+                    response = ChatResponse(
+                        conversation_id=conv_id,
+                        answer=answer_text,
+                        extracted_opportunity=extracted,
+                        matched_units=matched_units,
+                        analysis_card=analysis_card,
+                        suggestions=suggestions,
+                        suggested_actions=(
+                            ["save_opportunity_draft", "request_deal_form"] if unit_count else []
+                        ),
+                        context=ctx,
+                    )
+                except Exception:
+                    logger.exception("Matching agent failed; falling back to stub")
+                    response = _stub_response(conv_id)
+
+            elif intent == ChatIntent.save_draft:
+                response = _handle_save_draft(ctx, conv_id, session_meta)
+                response = response.model_copy(update={"context": ctx})
+
+            elif intent == ChatIntent.request_deal_form:
+                response = _handle_request_deal_form(ctx, conv_id)
+                response = response.model_copy(update={"context": ctx})
+
+            elif intent == ChatIntent.update_capabilities:
+                response = await handle_update_capabilities(ctx, conv_id, message)
+                response = response.model_copy(update={"context": ctx})
+
+            elif intent == ChatIntent.chitchat:
+                response = _handle_chitchat(ctx, conv_id)
+                response = response.model_copy(update={"context": ctx})
+
+            elif intent == ChatIntent.clarify:
+                response = _handle_clarify(ctx, conv_id)
+                response = response.model_copy(update={"context": ctx})
+
+            else:  # unknown
+                response = _handle_unknown(conv_id, ctx.language)
+                response = response.model_copy(update={"context": ctx})
+
         except Exception:
-            logger.exception("Matching agent failed; falling back to stub")
-            await session.commit()
-            return _stub_response(conv_id)
+            logger.exception("Context analysis failed; falling back to stub")
+            response = _stub_response(conv_id)
 
-        analysis_card = _build_analysis_card(extracted.title, suggestions, ctx.language)
-        unit_count = len(matched_units)
+    response.message_id = assistant_msg_id
+    response.user_message_id = user_msg_id
 
-        response = ChatResponse(
-            conversation_id=conv_id,
-            answer=answer_text,
-            extracted_opportunity=extracted,
-            matched_units=matched_units,
-            analysis_card=analysis_card,
-            suggestions=suggestions,
-            suggested_actions=(
-                ["save_opportunity_draft", "request_deal_form"] if unit_count else []
-            ),
-            context=ctx,
-        )
-
-    elif intent == ChatIntent.save_draft:
-        response = _handle_save_draft(ctx, conv_id, session_meta)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
-    elif intent == ChatIntent.request_deal_form:
-        response = _handle_request_deal_form(ctx, conv_id)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
-    elif intent == ChatIntent.update_capabilities:
-        response = await handle_update_capabilities(ctx, conv_id, payload.message)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
-    elif intent == ChatIntent.chitchat:
-        response = _handle_chitchat(ctx, conv_id)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
-    elif intent == ChatIntent.clarify:
-        response = _handle_clarify(ctx, conv_id)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
-    else:  # unknown
-        response = _handle_unknown(conv_id, ctx.language)
-        response = response.model_copy(update={"context": ctx})
-        answer_text = response.answer
-
+    # Persist the assistant turn with the finalized ui_payload
     ui_payload = response.model_dump(
         mode="json",
-        exclude={"conversation_id"},
+        exclude={"conversation_id", "message_id", "user_message_id"},
     )
     assistant_msg = ConversationMessage(
+        id=assistant_msg_id,
         conversation_id=conv_id,
         role="assistant",
-        content=answer_text,
+        content=response.answer,
         ui_payload=ui_payload,
     )
     session.add(assistant_msg)
@@ -478,7 +477,7 @@ async def get_conversation(
                 role=m.role,  # type: ignore[arg-type]
                 content=m.content,
                 created_at=m.created_at,
-                ui_payload=getattr(m, "ui_payload", None),
+                ui_payload=getattr(m, "ui_payload", None) or {},
             )
             for m in msgs
         ],

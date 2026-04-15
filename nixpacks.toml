@@ -1,0 +1,2 @@
+[start]
+cmd = "chmod +x start.sh && ./start.sh"

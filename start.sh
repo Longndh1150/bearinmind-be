@@ -7,7 +7,7 @@ alembic upgrade head
 # 2. Đổ dữ liệu mẫu (Seeding)
 # Lưu ý: Nếu dữ liệu đã có rồi, script này nên được viết để không chèn trùng
 echo "Seeding data..."
-python -m scripts.seed_units
+python -m scripts.seed.units
 
 # 3. Khởi chạy API
 echo "Starting server..."

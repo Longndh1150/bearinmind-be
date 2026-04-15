@@ -278,7 +278,9 @@ async def _process_chat_turn(
         conversation_id=conv_id,
         role="user",
         content=message,
-        ui_payload={},
+        ui_payload={
+            "message": message
+        },
     )
     session.add(user_msg)
 

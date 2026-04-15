@@ -39,6 +39,8 @@ def index_unit(
     case_study_titles: list[str] | None = None,
     contact_name: str = "",
     contact_email: str = "",
+    experts_json: str = "",
+    case_studies_json: str = "",
 ) -> None:
     """Embed & upsert a unit's capability document into Chroma.
 
@@ -61,6 +63,10 @@ def index_unit(
         metadata["contact_name"] = contact_name
     if contact_email:
         metadata["contact_email"] = contact_email
+    if experts_json:
+        metadata["experts_json"] = experts_json
+    if case_studies_json:
+        metadata["case_studies_json"] = case_studies_json
 
     collection = _get_collection()
     collection.upsert(documents=[document], metadatas=[metadata], ids=[unit_id])
@@ -88,3 +94,41 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
         )
         for i in range(len(ids))
     ]
+
+def get_all_units() -> list[VectorSearchResult]:
+    """Fetch all units from ChromaDB."""
+    collection = _get_collection()
+    raw = collection.get()
+
+    ids: list[str] = raw.get("ids") or []
+    metadatas: list[dict] = raw.get("metadatas") or [{}] * len(ids)
+    documents: list[str] = raw.get("documents") or [""] * len(ids)
+
+    return [
+        VectorSearchResult(
+            unit_id=ids[i],
+            unit_name=metadatas[i].get("unit_name", "Unknown"),
+            document=documents[i],
+            metadata=metadatas[i],
+        )
+        for i in range(len(ids))
+    ]
+
+def get_unit_by_id(unit_id: str) -> VectorSearchResult | None:
+    """Fetch a specific unit by ID from ChromaDB."""
+    collection = _get_collection()
+    raw = collection.get(ids=[unit_id])
+    
+    if not raw or not raw.get("ids"):
+        return None
+
+    metadatas: list[dict] = raw.get("metadatas") or [{}]
+    documents: list[str] = raw.get("documents") or [""]
+    
+    return VectorSearchResult(
+        unit_id=raw["ids"][0],
+        unit_name=metadatas[0].get("unit_name", "Unknown"),
+        document=documents[0],
+        metadata=metadatas[0],
+    )
+

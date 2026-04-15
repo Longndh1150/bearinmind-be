@@ -6,6 +6,8 @@ from sqlalchemy import create_engine, pool
 
 from alembic import context
 
+import os
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app.models  # noqa: F401

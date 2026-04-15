@@ -5,6 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from typing import Literal, Any
 
 from app.schemas.common import AuditFields
 
@@ -65,3 +66,13 @@ class UnitCapabilitiesUpdate(UnitCapabilities):
     # Use same fields; separated for future: partial update, versioning, confirmation, etc.
     pass
 
+
+class UnitStaffAvailability(BaseModel):
+    experts: list[UnitExpert]
+    hrm_available_staff: list[dict[str, Any]]
+    hrm_capacity: dict[str, Any]
+
+
+class UnitCaseStudiesResponse(BaseModel):
+    internal: list[UnitCaseStudy]
+    external: list[dict[str, Any]]

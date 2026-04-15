@@ -4311,6 +4311,34 @@
     "/api/v1/units": {
       "get": {
         "operationId": "list_units_api_v1_units_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4325,6 +4353,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -4332,7 +4370,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "List units",
+        "summary": "List units (from ChromaDB)",
         "tags": [
           "units"
         ]
@@ -4380,7 +4418,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get unit by id",
+        "summary": "Get unit by id (from ChromaDB)",
         "tags": [
           "units"
         ]
@@ -4388,7 +4426,6 @@
     },
     "/api/v1/units/{unit_id}/capabilities": {
       "delete": {
-        "description": "Xóa capabilities của một unit. Nếu có tech_to_remove thì chỉ xóa mỗi công nghệ đó.",
         "operationId": "clear_capabilities_api_v1_units__unit_id__capabilities_delete",
         "parameters": [
           {

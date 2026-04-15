@@ -88,3 +88,41 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
         )
         for i in range(len(ids))
     ]
+
+def get_all_units() -> list[VectorSearchResult]:
+    """Fetch all units from ChromaDB."""
+    collection = _get_collection()
+    raw = collection.get()
+
+    ids: list[str] = raw.get("ids") or []
+    metadatas: list[dict] = raw.get("metadatas") or [{}] * len(ids)
+    documents: list[str] = raw.get("documents") or [""] * len(ids)
+
+    return [
+        VectorSearchResult(
+            unit_id=ids[i],
+            unit_name=metadatas[i].get("unit_name", "Unknown"),
+            document=documents[i],
+            metadata=metadatas[i],
+        )
+        for i in range(len(ids))
+    ]
+
+def get_unit_by_id(unit_id: str) -> VectorSearchResult | None:
+    """Fetch a specific unit by ID from ChromaDB."""
+    collection = _get_collection()
+    raw = collection.get(ids=[unit_id])
+    
+    if not raw or not raw.get("ids"):
+        return None
+
+    metadatas: list[dict] = raw.get("metadatas") or [{}]
+    documents: list[str] = raw.get("documents") or [""]
+    
+    return VectorSearchResult(
+        unit_id=raw["ids"][0],
+        unit_name=metadatas[0].get("unit_name", "Unknown"),
+        document=documents[0],
+        metadata=metadatas[0],
+    )
+

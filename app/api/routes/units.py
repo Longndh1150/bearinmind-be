@@ -16,9 +16,36 @@ from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, Un
 
 from app.services.hrm_client import get_available_staff, get_unit_capacity
 from app.services.case_study_client import get_case_studies
-from app.services.unit_vector_indexer import reindex_unit
+from app.ai.tools.vector_search import reindex_unit, get_all_units, get_unit_by_id, VectorSearchResult, search_units
 
 router = APIRouter(prefix="/units", tags=["units"])
+
+def _chroma_to_unit_public(result: VectorSearchResult) -> UnitPublic:
+    meta = result.metadata
+    tech_stack = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
+    
+    # Check if case_study_titles exist, they are stored joined by '|'
+    case_study_titles = meta.get("case_study_titles", "").split("|") if meta.get("case_study_titles") else []
+    case_studies = [SchemaUnitCaseStudy(title=t) for t in case_study_titles if t]
+    
+    return UnitPublic(
+        id=UUID(result.unit_id),
+        code="CHROMA",  # ChromaDB does not store unit codes
+        name=result.unit_name,
+        status="active",
+        contact=UnitContact(
+            name=meta.get("contact_name", "Unknown"),
+            email=meta.get("contact_email"),
+        ),
+        capabilities=UnitCapabilities(
+            tech_stack=tech_stack,
+            experts=[],  # ChromaDB does not store granular expert lists
+            case_studies=case_studies,
+            notes=result.document,
+        ),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
 
 def _to_unit_public(unit: Unit) -> UnitPublic:
     return UnitPublic(
@@ -42,25 +69,28 @@ def _to_unit_public(unit: Unit) -> UnitPublic:
         updated_at=unit.updated_at,
     )
 
-@router.get("", response_model=list[UnitPublic], summary="List units")
+@router.get("", response_model=list[UnitPublic], summary="List units (from ChromaDB)")
 async def list_units(
-    session: AsyncSession = Depends(get_session),
+    query: str | None = None,
+    limit: int = 10,
     _: User = Depends(require_active_user)
 ) -> list[UnitPublic]:
-    res = await session.execute(select(Unit).options(selectinload(Unit.experts), selectinload(Unit.case_studies)))
-    return [_to_unit_public(u) for u in res.scalars().all()]
+    if query:
+        chroma_units = search_units(query, top_k=limit)
+    else:
+        chroma_units = get_all_units()
+    return [_chroma_to_unit_public(u) for u in chroma_units]
 
 
-@router.get("/{unit_id}", response_model=UnitPublic, summary="Get unit by id")
+@router.get("/{unit_id}", response_model=UnitPublic, summary="Get unit by id (from ChromaDB)")
 async def get_unit(
     unit_id: UUID, 
-    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitPublic:
-    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
-    return _to_unit_public(unit)
+    chroma_unit = get_unit_by_id(str(unit_id))
+    if not chroma_unit:
+        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    return _chroma_to_unit_public(chroma_unit)
 
 
 @router.put("/{unit_id}/capabilities", response_model=UnitPublic, status_code=status.HTTP_200_OK, summary="Append to unit capabilities")

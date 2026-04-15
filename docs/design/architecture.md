@@ -63,7 +63,7 @@ flowchart LR
 |-------|------|
 | **PostgreSQL** | Units, opportunities, conversation metadata, notifications, capability snapshots, sync audit fields. |
 | **Redis** | Celery broker; optional cache for HubSpot list responses. |
-| **ChromaDB** | Vector index of unit capability text + case study snippets; re-index on capability update. |
+| **ChromaDB** | Vector index of unit capability text + case study snippets; re-index on capability update. Supports `http` server mode and local `persistent` on-disk mode for single-service deployments. |
 
 ---
 

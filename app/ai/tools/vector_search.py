@@ -7,18 +7,61 @@ settings (host/port from config) and returns typed results.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
+from pathlib import Path
+import re
+from typing import Any
+from openai import OpenAI
 
-import chromadb
-from chromadb.utils import embedding_functions
+try:
+    import chromadb
+except Exception:  # pragma: no cover - exercised in runtime fallback
+    chromadb = None  # type: ignore[assignment]
 
 from app.core.config import settings
 
 COLLECTION_NAME = "unit_capabilities"
+logger = logging.getLogger(__name__)
+
+# Safe in-memory fallback when Chroma is unavailable.
+_memory_store: dict[str, dict[str, Any]] = {}
 
 
-def _get_collection() -> chromadb.Collection:
-    client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
-    ef = embedding_functions.DefaultEmbeddingFunction()
+def _get_collection():
+    if chromadb is None:
+        raise RuntimeError("chromadb package is not available")
+
+    mode = settings.chroma_mode.strip().lower()
+    if mode == "persistent":
+        persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
+        persist_dir.mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=str(persist_dir))
+    else:
+        client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+
+    class OpenRouterEmbeddingFunction:
+        """Embedding function backed by OpenAI-compatible embeddings endpoint.
+
+        Uses `LLM_BASE_URL` + `LLM_API_KEY` and model `LLM_EMBEDDING_MODEL`.
+        """
+
+        def __init__(self) -> None:
+            self._client = OpenAI(
+                api_key=settings.llm_api_key or "no-key",
+                base_url=settings.llm_base_url or None,
+            )
+            self._model = settings.llm_embedding_model
+
+        def __call__(self, input: list[str]) -> list[list[float]]:
+            if not input:
+                return []
+            resp = self._client.embeddings.create(
+                model=self._model,
+                input=input,
+            )
+            return [item.embedding for item in resp.data]
+
+    ef = OpenRouterEmbeddingFunction()
     return client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=ef)
 
 
@@ -28,6 +71,43 @@ class VectorSearchResult:
     unit_name: str
     document: str
     metadata: dict = field(default_factory=dict)
+
+
+def _fallback_upsert(unit_id: str, unit_name: str, document: str, metadata: dict[str, Any]) -> None:
+    _memory_store[unit_id] = {
+        "unit_name": unit_name,
+        "document": document,
+        "metadata": metadata,
+    }
+
+
+def _fallback_search(query: str, top_k: int) -> list[VectorSearchResult]:
+    # Lightweight lexical retrieval: rank by token overlap then substring match.
+    q_tokens = set(re.findall(r"[a-z0-9_]+", query.lower()))
+    ranked: list[tuple[int, str, dict[str, Any]]] = []
+
+    for unit_id, row in _memory_store.items():
+        unit_name = str(row.get("unit_name", "Unknown"))
+        document = str(row.get("document", ""))
+        text = f"{unit_name} {document}".lower()
+        d_tokens = set(re.findall(r"[a-z0-9_]+", text))
+
+        overlap = len(q_tokens & d_tokens)
+        substring_bonus = 2 if query.lower().strip() and query.lower().strip() in text else 0
+        score = overlap + substring_bonus
+        if score > 0:
+            ranked.append((score, unit_id, row))
+
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [
+        VectorSearchResult(
+            unit_id=unit_id,
+            unit_name=str(row.get("unit_name", "Unknown")),
+            document=str(row.get("document", "")),
+            metadata=dict(row.get("metadata", {})),
+        )
+        for _, unit_id, row in ranked[:top_k]
+    ]
 
 
 def index_unit(
@@ -62,8 +142,13 @@ def index_unit(
     if contact_email:
         metadata["contact_email"] = contact_email
 
-    collection = _get_collection()
-    collection.upsert(documents=[document], metadatas=[metadata], ids=[unit_id])
+    try:
+        collection = _get_collection()
+        collection.upsert(documents=[document], metadatas=[metadata], ids=[unit_id])
+        return
+    except Exception as exc:
+        logger.warning("Chroma upsert failed, falling back to in-memory index: %s", exc)
+        _fallback_upsert(unit_id=unit_id, unit_name=unit_name, document=document, metadata=metadata)
 
 
 def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
@@ -72,19 +157,23 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
     Returns a flat list of VectorSearchResult instead of raw Chroma dicts
     so callers don't have to unpack nested lists.
     """
-    collection = _get_collection()
-    raw = collection.query(query_texts=[query], n_results=top_k)
+    try:
+        collection = _get_collection()
+        raw = collection.query(query_texts=[query], n_results=top_k)
 
-    ids: list[str] = raw["ids"][0] if raw["ids"] else []
-    metadatas: list[dict] = raw["metadatas"][0] if raw["metadatas"] else []
-    documents: list[str] = raw["documents"][0] if raw["documents"] else []
+        ids: list[str] = raw["ids"][0] if raw["ids"] else []
+        metadatas: list[dict] = raw["metadatas"][0] if raw["metadatas"] else []
+        documents: list[str] = raw["documents"][0] if raw["documents"] else []
 
-    return [
-        VectorSearchResult(
-            unit_id=ids[i],
-            unit_name=metadatas[i].get("unit_name", "Unknown"),
-            document=documents[i],
-            metadata=metadatas[i],
-        )
-        for i in range(len(ids))
-    ]
+        return [
+            VectorSearchResult(
+                unit_id=ids[i],
+                unit_name=metadatas[i].get("unit_name", "Unknown"),
+                document=documents[i],
+                metadata=metadatas[i],
+            )
+            for i in range(len(ids))
+        ]
+    except Exception as exc:
+        logger.warning("Chroma query failed, using in-memory fallback search: %s", exc)
+        return _fallback_search(query=query, top_k=top_k)

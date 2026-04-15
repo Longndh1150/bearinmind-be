@@ -141,6 +141,19 @@
             "title": "Matched Units",
             "type": "array"
           },
+          "message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ID of the assistant's message in the database. Needed by the FE.",
+            "title": "Message Id"
+          },
           "suggested_actions": {
             "description": "Client-facing next actions like 'save opportunity draft', 'push to CRM', etc.",
             "items": {
@@ -156,6 +169,19 @@
             },
             "title": "Suggestions",
             "type": "array"
+          },
+          "user_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ID of the user's message in the database.",
+            "title": "User Message Id"
           }
         },
         "required": [
@@ -3262,7 +3288,7 @@
     },
     "/api/v1/dev/chroma/seed": {
       "post": {
-        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
+        "description": "Runs the built-in unit seed flow (same as `python -m scripts.seed.units`). Upserts unit capability data into PostgreSQL and then re-indexes to Chroma. Disabled in production.",
         "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
         "responses": {
           "200": {
@@ -3276,7 +3302,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "[DEV] Seed ChromaDB with sample units",
+        "summary": "[DEV] Seed unit data (Postgres + Chroma)",
         "tags": [
           "dev"
         ]
@@ -3284,7 +3310,7 @@
     },
     "/api/v1/dev/chroma/units": {
       "delete": {
-        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
+        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run `python -m scripts.seed.units` again to repopulate. Disabled in production.",
         "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
         "responses": {
           "200": {

@@ -18,6 +18,7 @@ Functional and non-functional requirements for **bearinmind-be** (API + AI + wor
 - Persist notifications when an opportunity matches a leader’s unit (or rule set).
 - Expose list API for the frontend (polling acceptable for v1).
 - Store fit level **High** or **Medium** and opportunity summary fields.
+- Include suggested follow-up actions (e.g. view detail / join proposal) in the notification payload.
 
 ### FR-3 — Unit capabilities (US3)
 
@@ -41,6 +42,7 @@ Functional and non-functional requirements for **bearinmind-be** (API + AI + wor
 
 - Return a combined view: opportunities from **PostgreSQL** (unofficial) and **HubSpot** (official).
 - Support filtering by at least: status, source, unit (exact fields agreed with frontend).
+- Include opportunities captured from Sales ↔ AI chat that have not been pushed to CRM yet.
 
 ### FR-7 — Integrations
 

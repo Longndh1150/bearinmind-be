@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from app.ai.tools.vector_search import VectorSearchResult, index_unit, search_units
+from app.ai.tools.vector_search import VectorSearchResult, _memory_store, index_unit, search_units
 
 
 def _mock_collection() -> MagicMock:
@@ -107,3 +107,37 @@ def test_index_unit_uses_upsert_not_add():
 
     mock_col.upsert.assert_called_once()
     mock_col.add.assert_not_called()
+
+
+def test_index_unit_falls_back_to_memory_when_chroma_unavailable():
+    _memory_store.clear()
+    with patch("app.ai.tools.vector_search._get_collection", side_effect=RuntimeError("chroma down")):
+        index_unit(
+            unit_id="u-mem-1",
+            unit_name="Memory Unit",
+            tech_stack=["Python"],
+            case_studies="Fallback path",
+            contact_name="Alice",
+        )
+    assert "u-mem-1" in _memory_store
+    assert _memory_store["u-mem-1"]["unit_name"] == "Memory Unit"
+
+
+def test_search_units_falls_back_to_memory_search():
+    _memory_store.clear()
+    _memory_store["u-1"] = {
+        "unit_name": "D365 Unit",
+        "document": "Tech D365 Power Platform",
+        "metadata": {"unit_name": "D365 Unit"},
+    }
+    _memory_store["u-2"] = {
+        "unit_name": "Python AI Unit",
+        "document": "Tech Python LLM Chroma",
+        "metadata": {"unit_name": "Python AI Unit"},
+    }
+
+    with patch("app.ai.tools.vector_search._get_collection", side_effect=RuntimeError("chroma down")):
+        results = search_units("python llm", top_k=2)
+
+    assert len(results) >= 1
+    assert results[0].unit_id == "u-2"

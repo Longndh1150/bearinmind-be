@@ -23,23 +23,15 @@ target_metadata = Base.metadata
 
 # 1. Lấy URL và chuyển đổi cho asyncpg
 def get_url():
-    # 1. Ưu tiên lấy từ biến môi trường của Railway
+    # Ưu tiên tuyệt đối biến môi trường từ Railway
     url = os.getenv("DATABASE_URL")
-    
     if url:
-        # Railway cung cấp postgresql://, ta cần đổi sang postgresql+asyncpg://
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return url
     
-    # 2. Nếu không có biến môi trường (chạy local), lấy từ alembic.ini
-    # Nhưng phải đảm bảo file .ini không chứa "driver://"
-    url_from_ini = config.get_main_option("sqlalchemy.url")
-    if url_from_ini and "driver://" in url_from_ini:
-        # Trả về một URL mặc định chạy local để tránh lỗi crash khi build
-        return "postgresql+asyncpg://postgres:postgres@localhost:5432/dbname"
-        
-    return url_from_ini
+    # Nếu chạy local mà không có DATABASE_URL, lấy từ alembic.ini
+    return config.get_main_option("sqlalchemy.url")
 
 def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)

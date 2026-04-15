@@ -101,6 +101,12 @@ async def update_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user),
 ) -> UnitPublic:
+    # Truy vấn Chroma thay vì PG để validate tồn tại
+    chroma_unit = get_unit_by_id(str(unit_id))
+    if not chroma_unit:
+        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    
+    # Update relational state as Source of Truth
     unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
@@ -139,7 +145,11 @@ async def update_capabilities(
     await get_case_studies(str(unit_id))
     await reindex_unit(str(unit.id))
     
-    return _to_unit_public(unit)
+    # Re-fetch from ChromaDB after sync to ensure we are returning Chroma's state
+    updated_chroma_unit = get_unit_by_id(str(unit_id))
+    if updated_chroma_unit:
+        return _chroma_to_unit_public(updated_chroma_unit)
+    return _to_unit_public(unit)  # Fallback
 
 @router.delete("/{unit_id}/capabilities", status_code=status.HTTP_200_OK, summary="Clear particular or all capabilities")
 async def clear_capabilities(
@@ -151,6 +161,10 @@ async def clear_capabilities(
     """
     Xóa capabilities của một unit. Nếu có tech_to_remove thì chỉ xóa mỗi công nghệ đó.
     """
+    chroma_unit = get_unit_by_id(str(unit_id))
+    if not chroma_unit:
+        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+        
     unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
@@ -178,14 +192,20 @@ async def clear_capabilities(
 @router.get("/{unit_id}/staff/available", response_model=UnitStaffAvailability, summary="Get available staff and experts for a unit")
 async def get_unit_staff_availability(
     unit_id: UUID,
-    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitStaffAvailability:
-    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts)])
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
+    chroma_unit = get_unit_by_id(str(unit_id))
+    if not chroma_unit:
+        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
         
-    experts = [SchemaUnitExpert(name=e.name, focus_areas=e.focus_areas or [], profile_url=e.profile_url) for e in unit.experts]
+    import json
+    experts_json_str = chroma_unit.metadata.get("experts_json", "[]")
+    
+    try:
+        experts_list = json.loads(experts_json_str)
+        experts = [SchemaUnitExpert(**e) for e in experts_list]
+    except Exception:
+        experts = []
     
     # Get available staff from HRM
     hrm_staff = await get_available_staff(str(unit_id))
@@ -200,14 +220,19 @@ async def get_unit_staff_availability(
 @router.get("/{unit_id}/case-studies", response_model=UnitCaseStudiesResponse, summary="Get case studies for a unit")
 async def get_unit_case_studies_api(
     unit_id: UUID,
-    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitCaseStudiesResponse:
-    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.case_studies)])
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
+    chroma_unit = get_unit_by_id(str(unit_id))
+    if not chroma_unit:
+        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
     
-    db_case_studies = [SchemaUnitCaseStudy(title=c.title, domain=c.domain, tech_stack=c.tech_stack or [], url=c.url) for c in unit.case_studies]
+    import json
+    case_studies_json_str = chroma_unit.metadata.get("case_studies_json", "[]")
+    try:
+        case_studies_list = json.loads(case_studies_json_str)
+        db_case_studies = [SchemaUnitCaseStudy(**cs) for cs in case_studies_list]
+    except Exception:
+        db_case_studies = []
     
     # Fetch from external integration
     external_case_studies = await get_case_studies(str(unit_id))

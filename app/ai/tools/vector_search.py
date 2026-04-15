@@ -39,6 +39,8 @@ def index_unit(
     case_study_titles: list[str] | None = None,
     contact_name: str = "",
     contact_email: str = "",
+    experts_json: str = "",
+    case_studies_json: str = "",
 ) -> None:
     """Embed & upsert a unit's capability document into Chroma.
 
@@ -61,6 +63,10 @@ def index_unit(
         metadata["contact_name"] = contact_name
     if contact_email:
         metadata["contact_email"] = contact_email
+    if experts_json:
+        metadata["experts_json"] = experts_json
+    if case_studies_json:
+        metadata["case_studies_json"] = case_studies_json
 
     collection = _get_collection()
     collection.upsert(documents=[document], metadatas=[metadata], ids=[unit_id])

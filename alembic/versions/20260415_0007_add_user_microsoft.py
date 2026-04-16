@@ -1,6 +1,6 @@
 """Add user_microsoft
 
-Revision ID: 39a829ebf470
+Revision ID: 0007
 Revises: 0006
 Create Date: 2026-04-15 17:36:30.182320
 

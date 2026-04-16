@@ -9,14 +9,18 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection
 from app.core.config import settings
+from app.db.session import get_session
 from app.integrations.hubspot_client import HubSpotAPIError
+from app.schemas.user import UserCreate, UserPublic
 from app.services import hubspot_service
+from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,25 @@ class DevSmokeResult(BaseModel):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/auth/register-superuser",
+    response_model=UserPublic,
+    status_code=status.HTTP_201_CREATED,
+    summary="[DEV] Create superuser account",
+    description="Development-only bootstrap endpoint to create a superuser with email/password.",
+)
+async def dev_register_superuser(
+    payload: UserCreate,
+    session: AsyncSession = Depends(get_session),
+) -> UserPublic:
+    _guard_non_production()
+    existing = await UserService.get_by_email(session, str(payload.email).lower())
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    user = await UserService.create(session, payload, is_superuser=True)
+    return UserPublic.model_validate(user, from_attributes=True)
 
 
 @router.get(

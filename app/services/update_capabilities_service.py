@@ -1,9 +1,9 @@
 import logging
 from uuid import UUID
 
+from app.ai.agents.update_capabilities_agent import parse_and_validate_capabilities_request
 from app.schemas.chat import ChatResponse
 from app.schemas.context import ConversationContext, DetectedLanguage
-from app.ai.agents.update_capabilities_agent import parse_and_validate_capabilities_request
 
 logger = logging.getLogger(__name__)
 

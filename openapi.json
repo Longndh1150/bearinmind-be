@@ -141,6 +141,19 @@
             "title": "Matched Units",
             "type": "array"
           },
+          "message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ID of the assistant's message in the database. Needed by the FE.",
+            "title": "Message Id"
+          },
           "suggested_actions": {
             "description": "Client-facing next actions like 'save opportunity draft', 'push to CRM', etc.",
             "items": {
@@ -156,6 +169,19 @@
             },
             "title": "Suggestions",
             "type": "array"
+          },
+          "user_message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ID of the user's message in the database.",
+            "title": "User Message Id"
           }
         },
         "required": [
@@ -1451,6 +1477,19 @@
         "title": "MatchedUnit",
         "type": "object"
       },
+      "MicrosoftAuthLogin": {
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token"
+        ],
+        "title": "MicrosoftAuthLogin",
+        "type": "object"
+      },
       "NotificationPublic": {
         "additionalProperties": false,
         "properties": {
@@ -2506,6 +2545,31 @@
         "title": "UnitCapabilitiesUpdate",
         "type": "object"
       },
+      "UnitCaseStudiesResponse": {
+        "properties": {
+          "external": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "External",
+            "type": "array"
+          },
+          "internal": {
+            "items": {
+              "$ref": "#/components/schemas/UnitCaseStudy"
+            },
+            "title": "Internal",
+            "type": "array"
+          }
+        },
+        "required": [
+          "internal",
+          "external"
+        ],
+        "title": "UnitCaseStudiesResponse",
+        "type": "object"
+      },
       "UnitCaseStudy": {
         "additionalProperties": false,
         "properties": {
@@ -2737,6 +2801,37 @@
         "title": "UnitPublic",
         "type": "object"
       },
+      "UnitStaffAvailability": {
+        "properties": {
+          "experts": {
+            "items": {
+              "$ref": "#/components/schemas/UnitExpert"
+            },
+            "title": "Experts",
+            "type": "array"
+          },
+          "hrm_available_staff": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Hrm Available Staff",
+            "type": "array"
+          },
+          "hrm_capacity": {
+            "additionalProperties": true,
+            "title": "Hrm Capacity",
+            "type": "object"
+          }
+        },
+        "required": [
+          "experts",
+          "hrm_available_staff",
+          "hrm_capacity"
+        ],
+        "title": "UnitStaffAvailability",
+        "type": "object"
+      },
       "UserCreate": {
         "properties": {
           "email": {
@@ -2881,7 +2976,7 @@
   },
   "info": {
     "title": "Bear In Mind API",
-    "version": "0.1.7"
+    "version": "0.2.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2921,6 +3016,48 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login/microsoft": {
+      "post": {
+        "description": "Login or Register with Microsoft SSO",
+        "operationId": "login_microsoft_api_v1_auth_login_microsoft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MicrosoftAuthLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login Microsoft",
         "tags": [
           "auth"
         ]
@@ -3045,84 +3182,8 @@
     },
     "/api/v1/chat/{conversation_id}": {
       "get": {
-        "description": "Returns conversations ordered by most recently updated, newest first.",
-        "operationId": "list_conversations_api_v1_chat_conversations_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConversationSummary"
-                  },
-                  "title": "Response List Conversations Api V1 Chat Conversations Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List conversations for the current user",
-        "tags": [
-          "chat"
-        ]
-      },
-      "post": {
-        "description": "Create a new conversation. The `first_message` is used to auto-generate a descriptive title via the secondary LLM model. Returns the conversation ID for subsequent POST /chat calls.",
-        "operationId": "create_conversation_api_v1_chat_conversations_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConversationCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConversationSummary"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create a new conversation",
-        "tags": [
-          "chat"
-        ]
-      }
-    },
-    "/api/v1/chat/conversations/{conversation_id}": {
-      "get": {
-        "description": "Returns the full message history for a conversation. Only the owner can access.",
-        "operationId": "get_conversation_api_v1_chat_conversations__conversation_id__get",
+        "description": "Returns metadata and full message history (including assistant ui_payload). Owner only.",
+        "operationId": "get_conversation_api_v1_chat__conversation_id__get",
         "parameters": [
           {
             "in": "path",
@@ -3227,7 +3288,7 @@
     },
     "/api/v1/dev/chroma/seed": {
       "post": {
-        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
+        "description": "Runs the built-in unit seed flow (same as `python -m scripts.seed.units`). Upserts unit capability data into PostgreSQL and then re-indexes to Chroma. Disabled in production.",
         "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
         "responses": {
           "200": {
@@ -3241,7 +3302,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "[DEV] Seed ChromaDB with sample units",
+        "summary": "[DEV] Seed unit data (Postgres + Chroma)",
         "tags": [
           "dev"
         ]
@@ -3249,7 +3310,7 @@
     },
     "/api/v1/dev/chroma/units": {
       "delete": {
-        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
+        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run `python -m scripts.seed.units` again to repopulate. Disabled in production.",
         "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
         "responses": {
           "200": {
@@ -3376,115 +3437,35 @@
         ]
       }
     },
-    "/api/v1/dev/chroma/seed": {
-      "post": {
-        "description": "Runs the built-in seed data (same as `python -m scripts.seed_units`). Uses stable UUIDs — safe to call multiple times (idempotent upsert). Disabled in production.",
-        "operationId": "dev_seed_chroma_api_v1_dev_chroma_seed_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevActionResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "[DEV] Seed ChromaDB with sample units",
-        "tags": [
-          "dev"
-        ]
-      }
-    },
-    "/api/v1/dev/chroma/units": {
-      "delete": {
-        "description": "Drops the entire unit_capabilities collection and recreates it empty. Run seed_units again to repopulate. Disabled in production.",
-        "operationId": "dev_reset_chroma_api_v1_dev_chroma_units_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevActionResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "[DEV] Reset ChromaDB — delete ALL units",
-        "tags": [
-          "dev"
-        ]
-      },
+    "/api/v1/health": {
       "get": {
-        "description": "Returns every document currently indexed in the unit_capabilities collection. Disabled in production.",
-        "operationId": "dev_list_chroma_units_api_v1_dev_chroma_units_get",
+        "description": "Simple liveness probe — returns 200 immediately with no dependency checks.",
+        "operationId": "liveness_api_v1_health_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChromaCollectionInfo"
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Liveness Api V1 Health Get",
+                  "type": "object"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "[DEV] List all units in ChromaDB",
+        "summary": "Liveness",
         "tags": [
-          "dev"
-        ]
-      }
-    },
-    "/api/v1/dev/chroma/units/{unit_id}": {
-      "delete": {
-        "description": "Removes one unit by its Chroma ID. Disabled in production.",
-        "operationId": "dev_delete_chroma_unit_api_v1_dev_chroma_units__unit_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "unit_id",
-            "required": true,
-            "schema": {
-              "title": "Unit Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DevActionResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "[DEV] Delete a single unit from ChromaDB",
-        "tags": [
-          "dev"
+          "health"
         ]
       }
     },
     "/api/v1/health/ready": {
       "get": {
+        "description": "Readiness probe — checks all downstream services but never crashes the app.\n\nEvery check is wrapped in its own try/except so a missing service is\nreported as an error in the response body rather than an unhandled\nexception that would return a 5xx to the caller.",
         "operationId": "ready_api_v1_health_ready_get",
         "responses": {
           "200": {
@@ -4329,8 +4310,35 @@
     },
     "/api/v1/units": {
       "get": {
-        "description": "Useful for FE dropdowns and admin screens.",
         "operationId": "list_units_api_v1_units_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4345,6 +4353,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -4352,7 +4370,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "List units",
+        "summary": "List units (from ChromaDB)",
         "tags": [
           "units"
         ]
@@ -4400,15 +4418,74 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get unit by id",
+        "summary": "Get unit by id (from ChromaDB)",
         "tags": [
           "units"
         ]
       }
     },
     "/api/v1/units/{unit_id}/capabilities": {
+      "delete": {
+        "operationId": "clear_capabilities_api_v1_units__unit_id__capabilities_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tech_to_remove",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tech To Remove"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Clear particular or all capabilities",
+        "tags": [
+          "units"
+        ]
+      },
       "put": {
-        "description": "US3: authenticated unit lead updates capability info; triggers re-embed later.",
         "operationId": "update_capabilities_api_v1_units__unit_id__capabilities_put",
         "parameters": [
           {
@@ -4459,7 +4536,103 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Update unit capabilities",
+        "summary": "Append to unit capabilities",
+        "tags": [
+          "units"
+        ]
+      }
+    },
+    "/api/v1/units/{unit_id}/case-studies": {
+      "get": {
+        "operationId": "get_unit_case_studies_api_api_v1_units__unit_id__case_studies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitCaseStudiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get case studies for a unit",
+        "tags": [
+          "units"
+        ]
+      }
+    },
+    "/api/v1/units/{unit_id}/staff/available": {
+      "get": {
+        "operationId": "get_unit_staff_availability_api_v1_units__unit_id__staff_available_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "unit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Unit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitStaffAvailability"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get available staff and experts for a unit",
         "tags": [
           "units"
         ]

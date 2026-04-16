@@ -5,19 +5,31 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
-from app.api.deps import require_active_user, require_superuser
+from app.ai.tools.vector_search import (
+    VectorSearchResult,
+    get_all_units,
+    get_unit_by_id,
+    search_units,
+)
+from app.api.deps import require_active_user
 from app.db.session import get_session
+from app.models.unit import Unit
 from app.models.user import User
-from app.models.unit import Unit, UnitExpert, UnitCaseStudy
-from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, UnitCapabilities, UnitExpert as SchemaUnitExpert, UnitCaseStudy as SchemaUnitCaseStudy, UnitStaffAvailability, UnitCaseStudiesResponse
-
+from app.schemas.unit import (
+    UnitCapabilities,
+    UnitCapabilitiesUpdate,
+    UnitCaseStudiesResponse,
+    UnitContact,
+    UnitPublic,
+    UnitStaffAvailability,
+)
+from app.schemas.unit import UnitCaseStudy as SchemaUnitCaseStudy
+from app.schemas.unit import UnitExpert as SchemaUnitExpert
+from app.services.case_study_client import get_case_studies
 from app.services.hrm_client import get_available_staff, get_unit_capacity
 from app.services.case_study_client import get_case_studies
 from app.services.unit_vector_indexer import reindex_unit
-from app.ai.tools.vector_search import get_all_units, get_unit_by_id, VectorSearchResult, search_units
 
 router = APIRouter(prefix="/units", tags=["units"])
 
@@ -169,15 +181,13 @@ async def clear_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ):
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    """
+    Xóa capabilities của một unit. Nếu có tech_to_remove thì chỉ xóa mỗi công nghệ đó.
+    """
+    unit = await session.get(Unit, unit_id, options=[selectinload(Unit.experts), selectinload(Unit.case_studies)])
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
         
-    meta = chroma_unit.metadata
-    
-    from app.ai.tools.vector_search import index_unit
-    import json
-    
     if tech_to_remove:
         existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
         if tech_to_remove in existing_tech:

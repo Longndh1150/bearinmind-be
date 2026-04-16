@@ -1,6 +1,6 @@
 # Bear In Mind — Backend Implementation Plan
 
-Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../user_stories.md). Adjust dates and owners to your sprint board.
+Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../user_stories.md) and checked against `docs/Gấu Núi Project Execution.xlsx` (Estimate sheet task definitions). Adjust dates and owners to your sprint board.
 
 **Status legend:** `Not started` | `In progress` | `Done`
 
@@ -29,11 +29,12 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| Unit schema + seed data | Tables for divisions, experts, contacts | Not started |
-| ChromaDB indexing pipeline | Embed capability + case text | Not started |
-| Matching agent | Entity extract → retrieve → rank → format | Not started |
-| `POST /chat` | Stable JSON contract for frontend (includes `analysis_card` + `suggestions` for interactive UI) | In progress |
-| Tests | Integration test on matching path | Not started |
+| Unit schema + seed data | Tables for divisions, experts, contacts | In progress |
+| ChromaDB indexing pipeline | Embed capability + case text | In progress |
+| Matching agent | Entity extract → retrieve → rank → format | Done |
+| Matching response formatter | Return units + rationale + contact payload | Done |
+| `POST /chat` | Stable JSON contract for frontend (includes `analysis_card` + `suggestions` for interactive UI) | Done |
+| Tests | Integration test on matching path | In progress |
 
 **Exit criteria:** Frontend can drive matching from real API; response includes units + reasons + contact.
 
@@ -45,10 +46,10 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| Opportunity schema | `is_official`, `source`, `pushed_at`, … | Not started |
-| HubSpot integration module | Create/update deal | Not started |
-| CRM sync agent | Confirm → push → persist result | Not started |
-| `POST /opportunities`, `PUT /opportunities/{id}/push-crm` | OpenAPI documented | Not started |
+| Opportunity schema | `is_official`, `source`, `pushed_at`, … | Done |
+| HubSpot integration module | Create/update deal | In progress |
+| CRM sync agent | Confirm → push → persist result | In progress |
+| `POST /opportunities`, `PUT /opportunities/{id}/push-crm` | OpenAPI documented | Done |
 
 ### Contract handoff note (FE alignment)
 
@@ -65,9 +66,9 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| HubSpot list fetch | Normalized opportunity DTO | Not started |
+| HubSpot list fetch | Normalized opportunity DTO | Done |
 | Merge service | Local + HubSpot with dedupe rules | Not started |
-| `GET /opportunities` | Filters + pagination | Not started |
+| `GET /opportunities` | Filters + pagination | In progress |
 
 **Exit criteria:** Dashboard can show mixed pipeline; filters work.
 
@@ -79,9 +80,9 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| Notification schema | Link to opportunity + unit + fit level | Not started |
+| Notification schema | Link to opportunity + unit + fit level | Done |
 | Match trigger hook | After opportunity create/match → insert notifications | Not started |
-| `GET /notifications` | Polling; optional mark-read | Not started |
+| `GET /notifications` | Polling; optional mark-read | In progress |
 
 **Exit criteria:** Creating a matching opportunity surfaces a notification row for the right leader.
 
@@ -93,10 +94,12 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| `PUT /units/{id}/capabilities` | Validation + persist + re-embed | Not started |
-| HRM / Salekit tools | Stub or real clients | Not started |
+| `PUT /units/{id}/capabilities` | Validation + persist + re-embed | In progress |
+| HRM / Salekit tools | Stub or real clients | In progress |
 | Memory agent | Incremental update flow | Not started |
 | Celery Beat + worker | Reminder schedule + idempotent sends | Not started |
+
+**Data source note:** Seeded unit capability data is the D.Lead-maintained source only. A separate detailed HRM mock/source (availability, staffing depth, consultability) must be added and then merged in agent context.
 
 **Exit criteria:** Capability edit updates search results; reminder fires on schedule with prior context.
 
@@ -106,9 +109,9 @@ Phased delivery for **bearinmind-be**, aligned with [`../user_stories.md`](../us
 
 | Task | Output | Status |
 |------|--------|--------|
-| E2E smoke | US1 → US5 → US6 path | Not started |
-| Production Docker / compose | Documented runbook | Not started |
-| README / env | Matches deployed stack | Not started |
+| E2E smoke | US1 → US5 → US6 path | In progress |
+| Production Docker / compose | Documented runbook | In progress |
+| README / env | Matches deployed stack | In progress |
 
 ---
 
@@ -128,5 +131,5 @@ flowchart TD
 
 ---
 
-**Version**: 1.2  
-**Date**: 2026-04-09
+**Version**: 1.4  
+**Date**: 2026-04-15

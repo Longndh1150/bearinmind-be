@@ -28,6 +28,10 @@ from app.db.session import AsyncSessionLocal
 from app.models.unit import Unit, UnitCaseStudy, UnitExpert
 from app.services.unit_vector_indexer import reindex_unit
 
+import chromadb
+from app.core.config import settings
+from pathlib import Path
+
 SEED_UNITS: list[dict[str, Any]] = [
     {
         "code": "DN1",
@@ -497,6 +501,19 @@ async def seed_units() -> None:
         await session.commit()
 
         print("Re-indexing units into vector store ...")
+        mode = settings.chroma_mode.strip().lower()
+        if mode == "persistent":
+            persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
+            persist_dir.mkdir(parents=True, exist_ok=True)
+            client = chromadb.PersistentClient(path=str(persist_dir))
+        else:
+            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        try:
+            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+            client.delete_collection(name="unit_capabilities")
+            print("Đã xóa collection cũ thành công.")
+        except Exception as e:
+            print(f"Không tìm thấy collection hoặc lỗi: {e}")
         for uid in unit_ids:
             await reindex_unit(uid, session=session)
         print(f"Done - {len(unit_ids)} unit(s) seeded and indexed.")

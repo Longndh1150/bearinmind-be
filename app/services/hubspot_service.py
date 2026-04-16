@@ -217,6 +217,29 @@ async def create_deal(draft: HubSpotDealDraft) -> HubSpotDealCreateResponse:
     )
 
 
+async def create_deal_from_list(properties: list[dict[str, str]]) -> HubSpotDealCreateResponse:
+    """Create deal via HubSpot legacy v1 API from a raw list of properties."""
+    try:
+        result = await hubspot_client.create_deal(properties)
+    except HubSpotAPIError as exc:
+        logger.error("HubSpot create_deal_from_list failed: %s (category=%s)", exc, exc.category)
+        return HubSpotDealCreateResponse(
+            success=False,
+            hubspot_deal_id=None,
+            message=f"HubSpot error: {exc}",
+        )
+
+    raw_id = result.get("dealId") or result.get("dealid") or result.get("id")
+    deal_id = str(raw_id) if raw_id is not None else None
+    is_success = bool(deal_id) and not result.get("isDeleted", False)
+
+    return HubSpotDealCreateResponse(
+        success=is_success,
+        hubspot_deal_id=deal_id,
+        message="Deal created in HubSpot" if is_success else "HubSpot returned an unexpected response",
+    )
+
+
 async def update_deal(deal_id: str, draft: HubSpotDealDraft) -> HubSpotDealUpdateResponse:
     """Map draft fields and update an existing deal via HubSpot v3 API."""
     properties = draft_to_hubspot_properties(draft)

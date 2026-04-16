@@ -11,15 +11,6 @@ from app.models.unit import Unit
 
 logger = logging.getLogger(__name__)
 
-import json
-from uuid import UUID
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
-from app.db.session import AsyncSessionLocal
-from app.models.unit import Unit
-from app.ai.tools.vector_search import index_unit
-
 def _build_case_study_text(unit: Unit) -> tuple[str, list[str]]:
     parts: list[str] = []
     titles: list[str] = []

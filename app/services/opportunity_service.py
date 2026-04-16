@@ -73,8 +73,8 @@ async def create_opportunity(
         is_official=False,
         created_by_id=user_id,
         conversation_id=conversation_id,
-        client_info=payload.client.model_dump() if payload.client else None,
-        extracted=payload.extracted.model_dump() if payload.extracted else None,
+        client_info=payload.client.model_dump(mode="json") if payload.client else None,
+        extracted=payload.extracted.model_dump(mode="json") if payload.extracted else None,
     )
     session.add(row)
     await session.commit()
@@ -141,9 +141,9 @@ async def update_opportunity(
     if payload.status is not None:
         row.status = payload.status
     if payload.client is not None:
-        row.client_info = payload.client.model_dump()
+        row.client_info = payload.client.model_dump(mode="json")
     if payload.extracted is not None:
-        row.extracted = payload.extracted.model_dump()
+        row.extracted = payload.extracted.model_dump(mode="json")
 
     await session.commit()
     await session.refresh(row)

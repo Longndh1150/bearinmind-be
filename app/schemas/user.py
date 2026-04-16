@@ -17,10 +17,17 @@ class UserPublic(BaseModel):
     email: EmailStr
     full_name: str | None = None
     is_active: bool
+    is_superuser: bool
     created_at: datetime
 
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class UserUpdate(BaseModel):
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, max_length=200)
+    is_superuser: bool | None = None
 

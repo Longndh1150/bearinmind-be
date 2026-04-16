@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_active_user
+from app.db.session import get_session
 from app.models.user import User
 from app.schemas.common import Paginated
-from app.schemas.notification import NotificationPublic
+from app.schemas.notification import (
+    NotificationCreateOpportunityMatchUnitRequest,
+    NotificationMarkReadRequest,
+    NotificationPublic,
+)
+from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -23,24 +29,35 @@ async def list_notifications(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     unread_only: bool = Query(False),
-    _: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_active_user),
 ) -> Paginated[NotificationPublic]:
-    now = datetime.now(UTC)
-    item = NotificationPublic(
-        id=uuid4(),
-        type="opportunity_match",
-        fit_level="high",
-        is_read=False,
-        read_at=None,
-        opportunity_id=uuid4(),
-        unit_id=uuid4(),
-        title="(stub) Opportunity matches your unit",
-        message="(stub) A new opportunity may fit your unit. Review and take action.",
-        created_at=now,
-        updated_at=now,
+    items, total = await notification_service.list_notifications(
+        session,
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+        unread_only=unread_only,
     )
-    items = [item] if not unread_only else [item]
-    return Paginated(items=items, total=len(items), limit=limit, offset=offset)
+    return Paginated(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.post(
+    "/opportunity-match-unit",
+    response_model=NotificationPublic,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create opportunity-match notification for Dlead",
+    description=(
+        "Creates a notification with flexible JSON payload for the "
+        "opportunity-match-unit scenario."
+    ),
+)
+async def create_opportunity_match_unit_notification(
+    payload: NotificationCreateOpportunityMatchUnitRequest,
+    session: AsyncSession = Depends(get_session),
+    _: User = Depends(require_active_user),
+) -> NotificationPublic:
+    return await notification_service.create_opportunity_match_unit_notification(session, payload)
 
 
 @router.post(
@@ -48,19 +65,19 @@ async def list_notifications(
     response_model=NotificationPublic,
     summary="Mark a notification as read",
 )
-async def mark_read(notification_id: UUID, _: User = Depends(require_active_user)) -> NotificationPublic:
-    now = datetime.now(UTC)
-    return NotificationPublic(
-        id=notification_id,
-        type="opportunity_match",
-        fit_level="high",
-        is_read=True,
-        read_at=now,
-        opportunity_id=uuid4(),
-        unit_id=uuid4(),
-        title="(stub) Marked as read",
-        message="(stub) Notification marked as read.",
-        created_at=now,
-        updated_at=now,
+async def mark_read(
+    notification_id: UUID,
+    payload: NotificationMarkReadRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_active_user),
+) -> NotificationPublic:
+    row = await notification_service.mark_read_state(
+        session,
+        notification_id=notification_id,
+        user_id=current_user.id,
+        is_read=True if payload is None else payload.is_read,
     )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    return row
 

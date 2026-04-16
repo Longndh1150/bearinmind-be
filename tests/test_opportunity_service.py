@@ -10,7 +10,11 @@ import pytest
 
 from app.models.opportunity import Opportunity
 from app.schemas.hubspot_deal import HubSpotDealCreateResponse
-from app.schemas.opportunity import OpportunityCreateRequest, OpportunityUpdateRequest
+from app.schemas.opportunity import (
+    OpportunityCreateRequest,
+    OpportunityParty,
+    OpportunityUpdateRequest,
+)
 from app.services import opportunity_service
 
 
@@ -43,6 +47,35 @@ async def test_create_opportunity_adds_row_and_commits():
     session.commit.assert_awaited()
     assert pub.title == "New deal"
     assert pub.id == added.id
+
+
+@pytest.mark.asyncio
+async def test_create_opportunity_serializes_httpurl_for_jsonb():
+    session = AsyncMock()
+    session.add = Mock()
+    payload = OpportunityCreateRequest(
+        title="New deal",
+        description="Enough chars here",
+        client=OpportunityParty(
+            name="Client A",
+            website="https://example.com",
+            country="VN",
+        ),
+    )
+
+    async def refresh(row: Opportunity) -> None:
+        if row.id is None:
+            row.id = uuid4()
+        row.created_at = datetime(2026, 3, 1, tzinfo=UTC)
+        row.updated_at = datetime(2026, 3, 1, tzinfo=UTC)
+
+    session.refresh = AsyncMock(side_effect=refresh)
+
+    await opportunity_service.create_opportunity(session, payload)
+
+    added: Opportunity = session.add.call_args[0][0]
+    assert isinstance(added.client_info, dict)
+    assert added.client_info["website"] == "https://example.com/"
 
 
 @pytest.mark.asyncio

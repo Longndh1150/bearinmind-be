@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from openai import OpenAI
 
 try:
@@ -41,10 +42,6 @@ def _get_collection():
         client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
 
     class OpenRouterEmbeddingFunction:
-        """Embedding function backed by OpenAI-compatible embeddings endpoint.
-
-        Uses `LLM_BASE_URL` + `LLM_API_KEY` and model `LLM_EMBEDDING_MODEL`.
-        """
 
         def __init__(self) -> None:
             self._client = OpenAI(
@@ -60,14 +57,20 @@ def _get_collection():
         def get_config(self) -> dict[str, str]:
             return {"model": self._model}
 
-        def __call__(self, input: list[str]) -> list[list[float]]:
+        def __call__(self, input: list[str]) -> list[np.ndarray]:
             if not input:
                 return []
-            resp = self._client.embeddings.create(
-                model=self._model,
-                input=input,
-            )
-            return [item.embedding for item in resp.data]
+            
+            embeddings = []
+            for text in input:
+                resp = self._client.embeddings.create(
+                    model=self._model,
+                    input=text,  # OpenRouter requires single string per request
+                )
+                embeddings.append(np.array(resp.data[0].embedding))
+            return embeddings
+        embed_documents = __call__
+        embed_query = __call__
 
     ef = OpenRouterEmbeddingFunction()
     return client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=ef)

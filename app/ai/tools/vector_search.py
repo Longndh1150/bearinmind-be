@@ -6,11 +6,12 @@ settings (host/port from config) and returns typed results.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
-from pathlib import Path
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
 from openai import OpenAI
 
 try:
@@ -51,6 +52,13 @@ def _get_collection():
                 base_url=settings.llm_base_url or None,
             )
             self._model = settings.llm_embedding_model
+
+        @staticmethod
+        def name() -> str:
+            return "openrouter-embedding"
+
+        def get_config(self) -> dict[str, str]:
+            return {"model": self._model}
 
         def __call__(self, input: list[str]) -> list[list[float]]:
             if not input:

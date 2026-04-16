@@ -1,4 +1,5 @@
 import logging
+
 from app.schemas.context import DetectedLanguage
 
 logger = logging.getLogger(__name__)

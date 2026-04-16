@@ -5,19 +5,29 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
-from app.api.deps import require_active_user, require_superuser
+from app.ai.tools.vector_search import (
+    VectorSearchResult,
+    get_all_units,
+    get_unit_by_id,
+    search_units,
+)
+from app.api.deps import require_active_user
 from app.db.session import get_session
+from app.models.unit import Unit
 from app.models.user import User
-from app.models.unit import Unit, UnitExpert, UnitCaseStudy
-from app.schemas.unit import UnitCapabilitiesUpdate, UnitContact, UnitPublic, UnitCapabilities, UnitExpert as SchemaUnitExpert, UnitCaseStudy as SchemaUnitCaseStudy, UnitStaffAvailability, UnitCaseStudiesResponse
-
-from app.services.hrm_client import get_available_staff, get_unit_capacity
+from app.schemas.unit import (
+    UnitCapabilities,
+    UnitCapabilitiesUpdate,
+    UnitCaseStudiesResponse,
+    UnitContact,
+    UnitPublic,
+    UnitStaffAvailability,
+)
+from app.schemas.unit import UnitCaseStudy as SchemaUnitCaseStudy
+from app.schemas.unit import UnitExpert as SchemaUnitExpert
 from app.services.case_study_client import get_case_studies
-from app.services.unit_vector_indexer import reindex_unit
-from app.ai.tools.vector_search import get_all_units, get_unit_by_id, VectorSearchResult, search_units
+from app.services.hrm_client import get_available_staff, get_unit_capacity
 
 router = APIRouter(prefix="/units", tags=["units"])
 
@@ -175,8 +185,8 @@ async def clear_capabilities(
         
     meta = chroma_unit.metadata
     
+
     from app.ai.tools.vector_search import index_unit
-    import json
     
     if tech_to_remove:
         existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []

@@ -1,6 +1,11 @@
 # Created by https://gitignore.org
 # Python.gitignore
 
+# Data
+*.db
+*.sqlite3
+chroma/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

@@ -414,7 +414,19 @@ SEED_UNITS: list[dict[str, Any]] = [
 ]
 
 
+def _ensure_contact_name(payload: dict[str, Any]) -> str:
+    """Return a non-empty contact name for DB not-null safety."""
+    raw = payload.get("contact_name")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+
+    code = str(payload.get("code") or "UNIT").strip() or "UNIT"
+    return f"{code} Lead"
+
+
 async def _upsert_unit(session: AsyncSession, payload: dict[str, Any]) -> Unit:
+    contact_name = _ensure_contact_name(payload)
+
     stmt = (
         select(Unit)
         .where(Unit.code == payload["code"])
@@ -423,15 +435,19 @@ async def _upsert_unit(session: AsyncSession, payload: dict[str, Any]) -> Unit:
     existing = (await session.execute(stmt)).scalar_one_or_none()
 
     if existing is None:
-        unit = Unit(code=payload["code"], name=payload["name"])
+        # Populate required not-null fields up front; first flush would otherwise fail.
+        unit = Unit(
+            code=payload["code"],
+            name=payload["name"],
+            contact_name=contact_name,
+        )
         session.add(unit)
-        await session.flush()
     else:
         unit = existing
 
     unit.name = payload["name"]
     unit.status = "active"
-    unit.contact_name = payload["contact_name"]
+    unit.contact_name = contact_name
     unit.contact_email = payload.get("contact_email")
     unit.contact_title = payload.get("contact_title")
     unit.contact_phone = payload.get("contact_phone")
@@ -474,7 +490,7 @@ async def seed_units() -> None:
             unit = await _upsert_unit(session, payload)
             unit_ids.append(str(unit.id))
             print(
-                f"  ✓ {unit.code} - {unit.name} "
+                f"  [OK] {unit.code} - {unit.name} "
                 f"(experts={len(unit.experts)}, case_studies={len(unit.case_studies)})"
             )
 
@@ -483,7 +499,7 @@ async def seed_units() -> None:
         print("Re-indexing units into vector store ...")
         for uid in unit_ids:
             await reindex_unit(uid, session=session)
-        print(f"Done — {len(unit_ids)} unit(s) seeded and indexed.")
+        print(f"Done - {len(unit_ids)} unit(s) seeded and indexed.")
 
 
 def main() -> None:

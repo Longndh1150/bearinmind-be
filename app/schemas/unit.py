@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
-from typing import Literal, Any
 
 from app.schemas.common import AuditFields
 

@@ -1,12 +1,14 @@
-import sys
 import asyncio
+import sys
 from pathlib import Path
 
 # Ensure project root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import requests
 import uuid
+
+import requests
+
 from app.db.session import AsyncSessionLocal
 from app.models.unit import Unit
 
@@ -81,7 +83,7 @@ def run_test():
         print("❌ Lỗi GET:", get_after_res.status_code, get_after_res.text)
 
     # 5. Xoá 1 capability
-    print(f"\n🗑️ B5: Đang gọi DELETE 1 tech cụ thể (?tech_to_remove=AWS)...")
+    print("\n🗑️ B5: Đang gọi DELETE 1 tech cụ thể (?tech_to_remove=AWS)...")
     del_one_res = requests.delete(f"{BASE_URL}/units/{TEST_UNIT_ID}/capabilities", params={"tech_to_remove": "AWS"}, headers=headers)
     if del_one_res.status_code == 200:
         print("✅ Xóa lẻ công nghệ thành công. Response:", del_one_res.json())
@@ -89,7 +91,7 @@ def run_test():
         print("   -> Tech_stack còn lại (Mất chữ AWS):", get_check["capabilities"].get("tech_stack"))
     
     # 6. Xoá TOÀN BỘ capability
-    print(f"\n💥 B6: Đang gọi lệnh DELETE toàn bộ năng lực...")
+    print("\n💥 B6: Đang gọi lệnh DELETE toàn bộ năng lực...")
     del_all_res = requests.delete(f"{BASE_URL}/units/{TEST_UNIT_ID}/capabilities", headers=headers)
     if del_all_res.status_code == 200:
         print("✅ Đã xóa toàn bộ năng lực (bao gồm expert, case study).")

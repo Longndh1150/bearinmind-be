@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
-import uuid
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.context import ConversationContext

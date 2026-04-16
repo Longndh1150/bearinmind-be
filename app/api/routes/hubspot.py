@@ -26,6 +26,8 @@ from app.schemas.hubspot_deal import (
 )
 from app.services import hubspot_service
 
+from uuid import uuid4
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hubspot", tags=["hubspot"])
@@ -131,6 +133,26 @@ async def create_deal(
         )
     return result
 
+@router.post(
+    "/deals-list",
+    response_model=HubSpotDealCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create HubSpot deal from list",
+    description=(
+        "Accepts a list of dictionaries. Returns a HubSpotDealCreateResponse."
+    ),
+)
+async def create_deal_from_draft_list(
+    payload: list[dict[str, str]],
+    _: User = Depends(require_active_user),
+) -> HubSpotDealCreateResponse:
+    result = await hubspot_service.create_deal_from_list(payload)
+    if not result.success:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=result.message,
+        )
+    return result
 
 @router.patch(
     "/deals/{deal_id}",

@@ -38,6 +38,8 @@ from app.schemas.context import (
 )
 from app.services.update_capabilities_service import handle_update_capabilities
 
+import time
+
 logger = logging.getLogger(__name__)
 
 _NOW_FALLBACK = datetime.now(UTC)
@@ -310,7 +312,7 @@ async def _process_chat_turn(
 
             if intent == ChatIntent.find_units:
                 try:
-                    extracted, matched_units, suggestions, answer_text = run_matching(
+                    extracted, matched_units, matched_experts, suggestions, answer_text = run_matching(
                         message=message,
                         language=ctx.language,
                     )
@@ -322,6 +324,7 @@ async def _process_chat_turn(
                         answer=answer_text,
                         extracted_opportunity=extracted,
                         matched_units=matched_units,
+                        matched_experts=matched_experts,
                         analysis_card=analysis_card,
                         suggestions=suggestions,
                         suggested_actions=(

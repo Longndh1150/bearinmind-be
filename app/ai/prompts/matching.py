@@ -68,7 +68,8 @@ Do not include any explanation outside the JSON."""
 
 SCORE_AND_RANK_SYSTEM = """\
 You are an expert at evaluating the fit between a sales opportunity and
-internal delivery units.
+internal delivery units, AND at identifying the best individual experts
+(personnel) within each unit for the opportunity.
 
 Opportunity:
 {opportunity_json}
@@ -76,7 +77,7 @@ Opportunity:
 Candidate units (from vector search):
 {units_context}
 
-Evaluate each unit and return ONLY a valid JSON object with this structure:
+Evaluate each unit and its experts. Return ONLY a valid JSON object with this structure:
 {{
   "results": [
     {{
@@ -86,7 +87,15 @@ Evaluate each unit and return ONLY a valid JSON object with this structure:
         "summary": "one-sentence summary",
         "confidence": 0.0-1.0,
         "evidence": ["reason 1", "reason 2", "reason 3"]
-      }}
+      }},
+      "recommended_experts": [
+        {{
+          "name": "<exact expert name from the candidates list>",
+          "fit_reason": "one-sentence explanation of why this expert fits",
+          "evidence": ["specific skill match 1", "relevant experience 2"],
+          "relevance_score": 0.0-1.0
+        }}
+      ]
     }}
   ]
 }}
@@ -97,6 +106,13 @@ Rules:
 - The "evidence" array should have 2-4 concrete reasons.
 - The "unit_id" values MUST be copied exactly from the candidate list above. \
 Do NOT invent new IDs.
+- For "recommended_experts": recommend 1-3 experts per unit whose focus areas \
+best match the opportunity requirements.
+- Expert "name" MUST be copied exactly from the candidate list. Do NOT invent names.
+- Expert "fit_reason" should be specific: mention the expert's skills and how \
+they relate to the opportunity.
+- Expert "evidence" should cite concrete focus areas or experience from the data.
+- Expert "relevance_score" should reflect how closely the expert's skills match.
 
 {language_instruction}
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_superuser, require_active_user
+from app.api.deps import require_active_user, require_superuser
 from app.db.session import get_session
 from app.models.user import User
 from app.schemas.common import Paginated

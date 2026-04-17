@@ -303,6 +303,21 @@ def test_chat_intent_request_deal_form(client_with_context):
     assert "submit_deal_form" in body["suggested_actions"]
 
 
+def test_chat_hubspot_command_bypasses_llm(client_with_context):
+    """User types /hubspot → backend should not call analyze_context()."""
+    with (
+        patch("app.api.routes.chat.analyze_context", side_effect=RuntimeError("analyze_context must not be called")),
+        patch("app.api.routes.chat.settings") as ms,
+    ):
+        ms.llm_api_key = "fake-key"
+        r = client_with_context.post("/api/v1/chat", json={"first_message": "/hubspot"})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert "submit_deal_form" in body["suggested_actions"]
+    assert body["context"]["intent"] == "request_deal_form"
+
+
 def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
     """intent=unknown → answer asks user to rephrase."""
     ctx = _make_context(ChatIntent.unknown, DetectedLanguage.en)

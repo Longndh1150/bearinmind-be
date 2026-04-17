@@ -255,7 +255,8 @@ def _smoke_llm_sync() -> DevSmokeResult:
     kwargs: dict = {"api_key": settings.llm_api_key}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    client = OpenAI(**kwargs)
+    from app.core.llm_tracking import instrument_openai_client
+    client = instrument_openai_client(OpenAI(**kwargs))
     try:
         resp = client.chat.completions.create(
             model=settings.llm_model_secondary,

@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     debug: bool = True
+    
+    # Logging
+    log_level: str = "INFO"
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/bearinmind"
 

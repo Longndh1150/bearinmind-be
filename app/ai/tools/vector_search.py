@@ -44,10 +44,11 @@ def _get_collection():
     class OpenRouterEmbeddingFunction:
 
         def __init__(self) -> None:
-            self._client = OpenAI(
+            from app.core.llm_tracking import instrument_openai_client
+            self._client = instrument_openai_client(OpenAI(
                 api_key=settings.llm_api_key or "no-key",
                 base_url=settings.llm_base_url or None,
-            )
+            ))
             self._model = settings.llm_embedding_model
 
         @staticmethod

@@ -17,11 +17,14 @@ logger = logging.getLogger(__name__)
 _MAX_TITLE_LEN = 60
 
 
+from app.core.llm_tracking import instrument_openai_client
+
+
 def _llm_client() -> OpenAI:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return OpenAI(**kwargs)
+    return instrument_openai_client(OpenAI(**kwargs))
 
 
 def generate_title(first_message: str) -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -43,6 +44,10 @@ logger = logging.getLogger(__name__)
 _NOW_FALLBACK = datetime.now(UTC)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+# When user explicitly asks to open HubSpot deal form, we can skip the
+# LLM "intent classification" step entirely.
+_HUBSPOT_CMD_RE = re.compile(r"^\s*/hubspot\b", re.IGNORECASE)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -286,7 +291,23 @@ async def _process_chat_turn(
 
     response: ChatResponse | None = None
 
-    if not settings.llm_api_key:
+    # ── fast path: explicit /hubspot command (no LLM intent extraction) ──
+    if _HUBSPOT_CMD_RE.match(message or ""):
+        session_meta = _load_session_meta(conv)
+        ctx = ConversationContext(
+            intent=ChatIntent.request_deal_form,
+            language=session_meta.language,
+            confidence=1.0,
+            opportunity_hint=None,
+            clarification_needed=None,
+            raw_message=message,
+        )
+        session_meta.language = ctx.language
+        session_meta.last_intent = ctx.intent
+        _save_session_meta(conv, session_meta)
+
+        response = _handle_request_deal_form(ctx, conv_id).model_copy(update={"context": ctx})
+    elif not settings.llm_api_key:
         logger.debug("LLM_API_KEY not set — returning stub chat response")
         response = _stub_response(conv_id)
     else:

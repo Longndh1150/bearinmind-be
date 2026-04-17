@@ -26,8 +26,6 @@ from app.schemas.hubspot_deal import (
 )
 from app.services import hubspot_service
 
-from uuid import uuid4
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hubspot", tags=["hubspot"])

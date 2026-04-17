@@ -27,11 +27,14 @@ logger = logging.getLogger(__name__)
 _HISTORY_TURNS = 4
 
 
+from app.core.llm_tracking import instrument_openai_client
+
+
 def _llm_client() -> OpenAI:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return OpenAI(**kwargs)
+    return instrument_openai_client(OpenAI(**kwargs))
 
 
 def _build_history_summary(history: list[ChatMessage]) -> str:

@@ -175,9 +175,21 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
     Returns a flat list of VectorSearchResult instead of raw Chroma dicts
     so callers don't have to unpack nested lists.
     """
+    from datetime import UTC, datetime
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        t0 = datetime.now(UTC)
+        logger.info("vector_search: Getting collection...")
         collection = _get_collection()
+        t1 = datetime.now(UTC)
+        logger.info(f"vector_search: _get_collection took {(t1 - t0).total_seconds():.3f}s")
+        
+        logger.info("vector_search: collection.query()...")
         raw = collection.query(query_texts=[query], n_results=top_k)
+        t2 = datetime.now(UTC)
+        logger.info(f"vector_search: collection.query took {(t2 - t1).total_seconds():.3f}s")
 
         ids: list[str] = raw["ids"][0] if raw["ids"] else []
         metadatas: list[dict] = raw["metadatas"][0] if raw["metadatas"] else []

@@ -277,6 +277,9 @@ async def _process_chat_turn(
 
     user_msg_id = uuid4()
     assistant_msg_id = uuid4()
+    
+    logger.info(f"Analyzing context for conv={conv_id}")
+    start_analyze = datetime.now(UTC)
 
     user_msg = ConversationMessage(
         id=user_msg_id,
@@ -322,6 +325,7 @@ async def _process_chat_turn(
             session_meta.last_intent = ctx.intent
             _save_session_meta(conv, session_meta)
 
+            elapsed_analyze = (datetime.now(UTC) - start_analyze).total_seconds()
             logger.info(
                 "conv=%s intent=%s lang=%s confidence=%.2f",
                 conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
@@ -335,6 +339,9 @@ async def _process_chat_turn(
                         message=message,
                         language=ctx.language,
                     )
+                    elapsed_matching = (datetime.now(UTC) - start_matching).total_seconds()
+                    logger.info(f"conv={conv_id} matching_time={elapsed_matching:.3f}s")
+                    
                     analysis_card = _build_analysis_card(extracted.title, suggestions, ctx.language)
                     unit_count = len(matched_units)
 

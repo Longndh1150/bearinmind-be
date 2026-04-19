@@ -15,13 +15,15 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Literal
 
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from app.ai.prompts.matching import (
-    EXTRACT_ENTITIES_SYSTEM,
-    SCORE_AND_RANK_SYSTEM,
+    extract_entities_prompt,
     language_instruction,
+    score_and_rank_prompt,
 )
 from app.ai.tools.vector_search import VectorSearchResult, search_units
 from app.core.config import settings
@@ -38,7 +40,7 @@ _DEFAULT_LANGUAGE = DetectedLanguage.vi
 from app.core.llm_tracking import instrument_openai_client
 
 
-def _llm_client() -> OpenAI:
+def _llm_client() -> ChatOpenAI:
     """Build an OpenAI-compatible client from BE settings.
 
     Works with OpenAI, OpenRouter, Groq (set LLM_BASE_URL + LLM_API_KEY).
@@ -46,22 +48,7 @@ def _llm_client() -> OpenAI:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return instrument_openai_client(OpenAI(**kwargs))
-
-
-def _chat_json(client: OpenAI, system: str, user: str = "") -> dict:
-    """Call LLM in JSON mode and return parsed dict."""
-    messages = [{"role": "system", "content": system}]
-    if user:
-        messages.append({"role": "user", "content": user})
-
-    resp = client.chat.completions.create(
-        model=settings.llm_model_primary,
-        messages=messages,
-        response_format={"type": "json_object"},
-    )
-    raw = resp.choices[0].message.content or "{}"
-    return json.loads(raw)
+    return ChatOpenAI(**kwargs, model=settings.llm_model_primary)
 
 
 # ── Step 1: entity extraction ──────────────────────────────────────────────────
@@ -77,19 +64,21 @@ def extract_entities(
     (title, notes, …) in the correct language.
     """
     client = _llm_client()
-    system = EXTRACT_ENTITIES_SYSTEM.format(
-        language_instruction=language_instruction(language),
-    )
+    chain = extract_entities_prompt | client.with_structured_output(OpportunityExtract)
+
     try:
-        data = _chat_json(client, system, message)
+        data: OpportunityExtract = chain.invoke({
+            "language_instruction": language_instruction(language),
+            "message": message,
+        })
         
         # Fallback for null fields causing Pydantic ValidationError
-        if data.get("tech_stack") is None:
-            data["tech_stack"] = []
-        if data.get("requirements") is None:
-            data["requirements"] = []
+        if data.tech_stack is None:
+            data.tech_stack = []
+        if data.requirements is None:
+            data.requirements = []
             
-        return OpportunityExtract(**data)
+        return data
     except Exception:
         logger.exception("Entity extraction failed; returning empty extract")
         return OpportunityExtract()
@@ -151,6 +140,26 @@ def _build_experts_lookup(results: list[VectorSearchResult]) -> dict[str, dict]:
     return lookup
 
 
+class LLMRecommendedExpert(BaseModel):
+    name: str = ""
+    fit_reason: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    relevance_score: float = 0.5
+
+class LLMRationale(BaseModel):
+    summary: str = ""
+    confidence: float = 0.5
+    evidence: list[str] = Field(default_factory=list)
+
+class LLMRankItem(BaseModel):
+    unit_id: str = ""
+    fit_level: Literal["high", "medium", "low"] = "low"
+    rationale: LLMRationale = Field(default_factory=LLMRationale)
+    recommended_experts: list[LLMRecommendedExpert] = Field(default_factory=list)
+
+class LLMScoreRankResult(BaseModel):
+    results: list[LLMRankItem] = Field(default_factory=list)
+
 def score_and_rank(
     opportunity: OpportunityExtract,
     vector_results: list[VectorSearchResult],
@@ -162,19 +171,20 @@ def score_and_rank(
 
     client = _llm_client()
     units_context = _build_units_context(vector_results)
-    system = SCORE_AND_RANK_SYSTEM.format(
-        opportunity_json=opportunity.model_dump_json(),
-        units_context=units_context,
-        language_instruction=language_instruction(language),
-    )
+
+    chain = score_and_rank_prompt | client.with_structured_output(LLMScoreRankResult)
 
     try:
-        data = _chat_json(client, system)
+        data: LLMScoreRankResult = chain.invoke({
+            "opportunity_json": opportunity.model_dump_json(),
+            "units_context": units_context,
+            "language_instruction": language_instruction(language),
+        })
     except Exception:
         logger.exception("Score/rank LLM call failed; returning empty results")
         return [], [], []
 
-    llm_results: list[dict] = data.get("results", [])
+    llm_results: list[LLMRankItem] = data.results
 
     # Authoritative lookup: unit_id → VectorSearchResult (IDs come from the system, not LLM)
     meta_by_id = {r.unit_id: r for r in vector_results}
@@ -189,7 +199,7 @@ def score_and_rank(
     for rank_idx, item in enumerate(llm_results):
         # Validate that the unit_id LLM echoed back is one we actually sent it.
         # If it's not, discard the item — LLM may not invent IDs.
-        unit_id = item.get("unit_id", "")
+        unit_id = item.unit_id
         meta = meta_by_id.get(unit_id)
         if meta is None:
             logger.warning("LLM returned unknown unit_id %r — skipping", unit_id)
@@ -201,14 +211,12 @@ def score_and_rank(
         contact_name = meta.metadata.get("contact_name") or "Contact"
         contact_email: str | None = meta.metadata.get("contact_email") or None
 
-        fit_level_raw: str = item.get("fit_level", "low")
-        fit_level = fit_level_raw if fit_level_raw in ("high", "medium", "low") else "low"
+        fit_level = item.fit_level
 
-        rationale_raw: dict = item.get("rationale", {})
         rationale = MatchRationale(
-            summary=rationale_raw.get("summary", ""),
-            confidence=float(rationale_raw.get("confidence", 0.5)),
-            evidence=rationale_raw.get("evidence", []),
+            summary=item.rationale.summary,
+            confidence=item.rationale.confidence,
+            evidence=item.rationale.evidence,
         )
 
         matched_units.append(
@@ -226,8 +234,8 @@ def score_and_rank(
         unit_experts_lookup = experts_lookup.get(unit_id, {})
         unit_matched_experts: list[MatchedExpert] = []
 
-        for exp_item in item.get("recommended_experts", []):
-            exp_name_raw = exp_item.get("name", "")
+        for exp_item in item.recommended_experts:
+            exp_name_raw = exp_item.name
             # Validate expert name against system data
             exp_sys = unit_experts_lookup.get(exp_name_raw.lower())
             if exp_sys is None:
@@ -239,9 +247,9 @@ def score_and_rank(
                 unit_id=unit_id,
                 unit_name=unit_name,
                 focus_areas=exp_sys["focus_areas"],  # authoritative from system
-                fit_reason=exp_item.get("fit_reason", ""),
-                evidence=exp_item.get("evidence", []),
-                relevance_score=float(exp_item.get("relevance_score", 0.5)),
+                fit_reason=exp_item.fit_reason,
+                evidence=exp_item.evidence,
+                relevance_score=float(exp_item.relevance_score),
                 profile_url=exp_sys.get("profile_url"),
             )
             unit_matched_experts.append(matched_expert)
@@ -329,14 +337,12 @@ def _build_answer(
     )
     client = _llm_client()
     try:
-        resp = client.chat.completions.create(
-            model=settings.llm_model_primary,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return (resp.choices[0].message.content or "").strip()
+        from langchain_core.messages import SystemMessage, HumanMessage
+        resp = client.invoke([
+            SystemMessage(content=system),
+            HumanMessage(content=user_prompt)
+        ])
+        return str(resp.content).strip()
     except Exception:
         logger.warning("Answer generation failed; using fallback text")
         if count:

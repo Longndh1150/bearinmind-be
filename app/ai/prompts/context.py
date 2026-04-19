@@ -1,3 +1,5 @@
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
 """Prompt template for the context analysis step (LLM call 0).
 
 This is the very first LLM call in each chat turn. It classifies the user's
@@ -5,18 +7,7 @@ intent and detects the language so all downstream prompts can use the correct
 language without re-detecting it.
 """
 
-# ---------------------------------------------------------------------------
-# CLASSIFY_INTENT_SYSTEM
-# ---------------------------------------------------------------------------
-# Usage:
-#   CLASSIFY_INTENT_SYSTEM.format(
-#       message=user_message,
-#       history_summary=history_text,   # "" if no history
-#       session_language=session_lang,  # "unknown" on first turn
-#   )
-# ---------------------------------------------------------------------------
-
-CLASSIFY_INTENT_SYSTEM = """\
+CLASSIFY_INTENT_SYSTEM_PROMPT = """\
 You are a routing assistant for Bear In Mind, an internal AI system that helps \
 Rikkeisoft sales and delivery teams match project opportunities to the right \
 engineering divisions.
@@ -103,11 +94,10 @@ clarification_needed: Required when intent is clarify.
 
 confidence: Your confidence in the intent classification (0.0 = uncertain, \
 1.0 = certain).
-
---- CONTEXT ---
-Recent conversation history (last 4 turns, oldest first):
-{history_summary}
-
-User message:
-{message}
 """
+
+classify_intent_prompt = ChatPromptTemplate.from_messages([
+    ("system", CLASSIFY_INTENT_SYSTEM_PROMPT),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{message}")
+])

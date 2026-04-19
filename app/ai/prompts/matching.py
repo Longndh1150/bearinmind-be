@@ -39,22 +39,20 @@ def language_instruction(lang: DetectedLanguage) -> str:
 # Usage: EXTRACT_ENTITIES_SYSTEM.format(language_instruction=language_instruction(lang))
 # ---------------------------------------------------------------------------
 
+from langchain_core.prompts import ChatPromptTemplate
+
 EXTRACT_ENTITIES_SYSTEM = """\
 You are an expert at analysing sales opportunity descriptions.
-Extract key attributes from the user's message and return ONLY a valid JSON
-object with this exact structure (use null for missing fields):
-{{
-  "title": "short opportunity title or null",
-  "client": "client name or null",
-  "market": "target market / country or null",
-  "tech_stack": ["tech1", "tech2"],
-  "requirements": ["req1", "req2"],
-  "notes": "any other relevant notes or null"
-}}
+Extract key attributes from the user's message and return ONLY a valid structured
+object matching the schema.
 
 {language_instruction}
+"""
 
-Do not include any explanation outside the JSON."""
+extract_entities_prompt = ChatPromptTemplate.from_messages([
+    ("system", EXTRACT_ENTITIES_SYSTEM),
+    ("user", "{message}")
+])
 
 
 # ---------------------------------------------------------------------------
@@ -77,43 +75,22 @@ Opportunity:
 Candidate units (from vector search):
 {units_context}
 
-Evaluate each unit and its experts. Return ONLY a valid JSON object with this structure:
-{{
-  "results": [
-    {{
-      "unit_id": "<id from above>",
-      "fit_level": "high" | "medium" | "low",
-      "rationale": {{
-        "summary": "one-sentence summary",
-        "confidence": 0.0-1.0,
-        "evidence": ["reason 1", "reason 2", "reason 3"]
-      }},
-      "recommended_experts": [
-        {{
-          "name": "<exact expert name from the candidates list>",
-          "fit_reason": "one-sentence explanation of why this expert fits",
-          "evidence": ["specific skill match 1", "relevant experience 2"],
-          "relevance_score": 0.0-1.0
-        }}
-      ]
-    }}
-  ]
-}}
+Evaluate each unit and its experts. Return ONLY a valid structured response matching the schema.
 
 Rules:
 - Order results from best to worst fit.
 - Include only units that are at least a low fit.
 - The "evidence" array should have 2-4 concrete reasons.
-- The "unit_id" values MUST be copied exactly from the candidate list above. \
-Do NOT invent new IDs.
-- For "recommended_experts": recommend 1-3 experts per unit whose focus areas \
-best match the opportunity requirements.
+- The "unit_id" values MUST be copied exactly from the candidate list above. Do NOT invent new IDs.
+- For "recommended_experts": recommend 1-3 experts per unit whose focus areas best match the opportunity requirements.
 - Expert "name" MUST be copied exactly from the candidate list. Do NOT invent names.
-- Expert "fit_reason" should be specific: mention the expert's skills and how \
-they relate to the opportunity.
+- Expert "fit_reason" should be specific: mention the expert's skills and how they relate to the opportunity.
 - Expert "evidence" should cite concrete focus areas or experience from the data.
 - Expert "relevance_score" should reflect how closely the expert's skills match.
 
 {language_instruction}
+"""
 
-Do not include any explanation outside the JSON."""
+score_and_rank_prompt = ChatPromptTemplate.from_messages([
+    ("system", SCORE_AND_RANK_SYSTEM)
+])

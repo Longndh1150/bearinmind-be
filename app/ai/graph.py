@@ -32,32 +32,29 @@ class GraphState(TypedDict):
 
 def node_analyze_context(state: GraphState) -> dict:
     logger.info("[Graph] Entering node_analyze_context")
-    from app.ai.agents.context_analyzer import analyze_context
-    ctx = analyze_context(
+    from app.ai.agents.context_analyzer import analyze_context_and_extract
+    ctx, extracted = analyze_context_and_extract(
         message=state["user_message"],
         history=state.get("history", []),
         session_meta=state.get("session_meta"),
         user_preferred_language=state.get("user_preferred_language")
     )
     logger.info(f"[Graph] Exiting node_analyze_context: intent={ctx.intent.value}, lang={ctx.language.value}")
-    return {"context": ctx}
+    
+    return {
+        "context": ctx, 
+        "extracted_entities": extracted
+    }
 
 def route_intent(state: GraphState) -> str:
     ctx = state.get("context")
     if ctx and ctx.intent == ChatIntent.find_units:
-        logger.info("[Graph] Routing to extract_entities")
-        return "extract_entities"
+        logger.info("[Graph] Routing to vector_search")
+        return "vector_search"
     logger.info("[Graph] Routing to handle_other_intent")
     return "handle_other_intent"
 
-def node_extract_entities(state: GraphState) -> dict:
-    logger.info("[Graph] Entering node_extract_entities")
-    from app.ai.agents.matching import extract_entities
-    ctx = state["context"]
-    lang = ctx.language if ctx else DetectedLanguage.vi
-    extracted = extract_entities(state["user_message"], language=lang)
-    logger.info("[Graph] Exiting node_extract_entities")
-    return {"extracted_entities": extracted}
+
 
 def node_vector_search(state: GraphState) -> dict:
     logger.info("[Graph] Entering node_vector_search")
@@ -104,17 +101,15 @@ def build_graph():
     workflow = StateGraph(GraphState)
     
     workflow.add_node("analyze_context", node_analyze_context)
-    workflow.add_node("extract_entities", node_extract_entities)
     workflow.add_node("vector_search", node_vector_search)
     workflow.add_node("summarize", node_summarize)
     workflow.add_node("handle_other_intent", node_handle_other_intent)
     
     workflow.add_edge(START, "analyze_context")
     workflow.add_conditional_edges("analyze_context", route_intent, {
-        "extract_entities": "extract_entities",
+        "vector_search": "vector_search",
         "handle_other_intent": "handle_other_intent"
     })
-    workflow.add_edge("extract_entities", "vector_search")
     workflow.add_edge("vector_search", "summarize")
     workflow.add_edge("summarize", END)
     workflow.add_edge("handle_other_intent", END)

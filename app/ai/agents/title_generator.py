@@ -11,6 +11,7 @@ import logging
 from openrouter import OpenRouter
 
 from app.core.config import settings
+from app.ai.constants import LLM_TITLE_GENERATION_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ def generate_title(first_message: str) -> str:
                 {"role": "user", "content": first_message[:1000]},
             ],
             temperature=0.3,
+            max_tokens=LLM_TITLE_GENERATION_MAX_TOKENS,
         )
         raw = (resp.choices[0].message.content or "").strip().strip('"\'')
         title = raw[:_MAX_TITLE_LEN] if raw else _fallback_title(first_message)

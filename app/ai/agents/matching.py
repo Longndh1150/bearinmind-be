@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Literal
 
 from langchain_openrouter import ChatOpenRouter
@@ -25,8 +26,12 @@ from app.ai.prompts.matching import (
     language_instruction,
     score_and_rank_prompt,
 )
+from app.ai.constants import (
+    LLM_MATCHING_SCORE_RANK_MAX_TOKENS,
+)
 from app.ai.tools.vector_search import VectorSearchResult, search_units
 from app.core.config import settings
+from app.core.llm_tracking import LLMTrackingContext
 from app.schemas.chat import MatchedExpert, MatchedUnit, MatchRationale, TeamSuggestion
 from app.schemas.context import DetectedLanguage
 from app.schemas.llm import OpportunityExtract
@@ -37,12 +42,14 @@ logger = logging.getLogger(__name__)
 _DEFAULT_LANGUAGE = DetectedLanguage.vi
 
 
-def _llm_client() -> ChatOpenRouter:
+def _llm_client(max_tokens: int | None = None) -> ChatOpenRouter:
     """Build an OpenRouter-compatible client from BE settings.
     """
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
     # instrumenting pure LangChain object with llm_tracking isn't easily monkeypatched like openrouter sdk
     # we leave it out here for now
     return ChatOpenRouter(**kwargs, model=settings.llm_model_primary, max_retries=1)
@@ -60,14 +67,27 @@ def extract_entities(
     language is injected into the prompt so the LLM writes free-text fields
     (title, notes, …) in the correct language.
     """
-    client = _llm_client()
-    chain = extract_entities_prompt | client.with_structured_output(OpportunityExtract)
+    client = _llm_client(max_tokens=LLM_MATCHING_SCORE_RANK_MAX_TOKENS)
+    chain = extract_entities_prompt | client.with_structured_output(OpportunityExtract, include_raw=True)
 
     try:
-        data: OpportunityExtract = chain.invoke({
+        t0 = time.time()
+        response = chain.invoke({
             "language_instruction": language_instruction(language),
             "message": message,
         })
+        t1 = time.time()
+        
+        data: OpportunityExtract = response["parsed"]
+        raw_msg = response["raw"]
+        
+        if hasattr(raw_msg, "usage_metadata"):
+            LLMTrackingContext.log_call(
+                operation_name="extract_entities",
+                elapsed_s=t1 - t0,
+                usage=LLMTrackingContext._extract_usage(raw_msg),
+                model=getattr(raw_msg, "response_metadata", {}).get("model_name", settings.llm_model_primary),
+            )
         
         # Fallback for null fields causing Pydantic ValidationError
         if data.tech_stack is None:
@@ -140,13 +160,11 @@ def _build_experts_lookup(results: list[VectorSearchResult]) -> dict[str, dict]:
 class LLMRecommendedExpert(BaseModel):
     name: str = ""
     fit_reason: str = ""
-    evidence: list[str] = Field(default_factory=list)
     relevance_score: float = 0.5
 
 class LLMRationale(BaseModel):
     summary: str = ""
     confidence: float = 0.5
-    evidence: list[str] = Field(default_factory=list)
 
 class LLMRankItem(BaseModel):
     unit_id: str = ""
@@ -170,20 +188,33 @@ def score_and_rank(
     if not vector_results:
         return [], [], [], "No units or experts found."
 
-    client = _llm_client()
+    client = _llm_client(max_tokens=LLM_MATCHING_SCORE_RANK_MAX_TOKENS)
     units_context = _build_units_context(vector_results)
 
-    chain = score_and_rank_prompt | client.with_structured_output(LLMScoreRankResult)
+    chain = score_and_rank_prompt | client.with_structured_output(LLMScoreRankResult, include_raw=True)
 
     try:
-        data: LLMScoreRankResult = chain.invoke({
+        t0 = time.time()
+        response = chain.invoke({
             "opportunity_json": opportunity.model_dump_json(),
             "units_context": units_context,
             "language_instruction": language_instruction(language),
         })
+        t1 = time.time()
     except Exception:
         logger.exception("Score/rank LLM call failed; returning empty results")
         return [], [], [], "There was an error."
+
+    data: LLMScoreRankResult = response["parsed"]
+    raw_msg = response["raw"]
+    
+    if hasattr(raw_msg, "usage_metadata"):
+        LLMTrackingContext.log_call(
+            operation_name="score_and_rank",
+            elapsed_s=t1 - t0,
+            usage=LLMTrackingContext._extract_usage(raw_msg),
+            model=getattr(raw_msg, "response_metadata", {}).get("model_name", settings.llm_model_primary),
+        )
 
     llm_results: list[LLMRankItem] = data.results
     final_answer = data.final_answer
@@ -218,7 +249,7 @@ def score_and_rank(
         rationale = MatchRationale(
             summary=item.rationale.summary,
             confidence=item.rationale.confidence,
-            evidence=item.rationale.evidence,
+            evidence=[],
         )
 
         matched_units.append(
@@ -250,7 +281,7 @@ def score_and_rank(
                 unit_name=unit_name,
                 focus_areas=exp_sys["focus_areas"],  # authoritative from system
                 fit_reason=exp_item.fit_reason,
-                evidence=exp_item.evidence,
+                evidence=[],
                 relevance_score=float(exp_item.relevance_score),
                 profile_url=exp_sys.get("profile_url"),
             )
@@ -287,70 +318,5 @@ def score_and_rank(
         )
 
     return matched_units, all_matched_experts, suggestions, final_answer
-
-
-# ── Step 4: natural-language answer ───────────────────────────────────────────
-
-
-def _build_answer(
-    user_message: str,
-    extracted: OpportunityExtract,
-    matched_units: list[MatchedUnit],
-    matched_experts: list[MatchedExpert],
-    language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> str:
-    """Ask the LLM to write a natural-language reply in the detected language."""
-    count = len(matched_units)
-    unit_names = ", ".join(u.unit_name for u in matched_units) if matched_units else "none"
-
-    # Build expert summary for the answer
-    expert_count = len(matched_experts)
-    if matched_experts:
-        top_experts = matched_experts[:5]  # Show top 5 experts max
-        expert_lines = []
-        for exp in top_experts:
-            areas = ", ".join(exp.focus_areas[:3]) if exp.focus_areas else ""
-            expert_lines.append(f"{exp.name} ({exp.unit_name}) - {areas}")
-        expert_summary = "; ".join(expert_lines)
-    else:
-        expert_summary = "none"
-
-    lang_names = {
-        DetectedLanguage.vi: "Vietnamese",
-        DetectedLanguage.en: "English",
-        DetectedLanguage.ja: "Japanese",
-        DetectedLanguage.other: "the same language as the user message",
-    }
-    lang_name = lang_names.get(language, "Vietnamese")
-
-    system = (
-        f"You are a helpful assistant summarising unit-matching and expert-matching results for a sales team. "
-        f"Write a SHORT (2-4 sentence) friendly response in {lang_name}. "
-        "Mention how many units were found and their names. "
-        "Also mention the top recommended experts and briefly why they fit. "
-        "Do not include JSON or markdown."
-    )
-    user_prompt = (
-        f"User message: {user_message}\n"
-        f"Matched {count} unit(s): {unit_names}.\n"
-        f"Recommended {expert_count} expert(s): {expert_summary}.\n"
-        f"Opportunity title: {extracted.title or 'not detected'}.\n"
-        "Write the assistant reply:"
-    )
-    client = _llm_client()
-    try:
-        from langchain_core.messages import SystemMessage, HumanMessage
-        resp = client.invoke([
-            SystemMessage(content=system),
-            HumanMessage(content=user_prompt)
-        ])
-        return str(resp.content).strip()
-    except Exception:
-        logger.warning("Answer generation failed; using fallback text")
-        if count:
-            return f"Found {count} matching unit(s): {unit_names}. {expert_count} expert(s) recommended."
-        return "No matching units found. Please provide more details about the technology and market."
-
-
 
 

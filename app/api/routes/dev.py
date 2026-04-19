@@ -78,6 +78,16 @@ class DevSmokeResult(BaseModel):
     )
 
 
+class DevToolCallingResult(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    ok: bool
+    model: str
+    tool_calls: list[dict] = Field(default_factory=list)
+    raw_content: str | None = None
+    error: str | None = None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -329,6 +339,68 @@ async def dev_smoke_embeddings(model: str | None = None) -> DevSmokeResult:
 async def dev_smoke_llm() -> DevSmokeResult:
     _guard_non_production()
     return await asyncio.to_thread(_smoke_llm_sync)
+
+
+def _smoke_tool_calling_sync(model_override: str | None = None) -> DevToolCallingResult:
+    """Evaluate if the model correctly supports and invokes a function call."""
+    if not (settings.llm_api_key or "").strip():
+        return DevToolCallingResult(ok=False, model="", error="LLM_API_KEY is not set or empty.")
+
+    kwargs: dict = {"api_key": settings.llm_api_key}
+    if settings.llm_base_url:
+        kwargs["base_url"] = settings.llm_base_url
+
+    target_model = model_override or settings.llm_model_secondary
+
+    from langchain_openrouter import ChatOpenRouter
+
+    class MockWeatherTool(BaseModel):
+        """Get the current weather in a given location."""
+        location: str = Field(description="The city and state, e.g. Hanoi, Vietnam")
+        unit: str = Field(description="The temperature unit to use", enum=["celsius", "fahrenheit"])
+
+    try:
+        client = ChatOpenRouter(
+            **kwargs,
+            model=target_model,
+            max_tokens=500,
+            max_retries=1
+        )
+        
+        # Bind the mock tool
+        llm_with_tools = client.bind_tools([MockWeatherTool])
+        
+        # Invoke the chain, asking a clear question that matches the tool description
+        response = llm_with_tools.invoke("What's the weather like in Hanoi, Vietnam in celsius?")
+
+        # Output might be missing tool calls depending on the model's support
+        ok = len(response.tool_calls) > 0
+        
+        return DevToolCallingResult(
+            ok=ok,
+            model=target_model,
+            tool_calls=response.tool_calls,
+            raw_content=str(response.content) if response.content else None,
+            error=None if ok else "Model did not return any tool calls."
+        )
+    except Exception as exc:
+        logger.exception("Tool calling smoke test failed")
+        return DevToolCallingResult(ok=False, model=target_model, error=str(exc)[:400])
+
+
+@router.get(
+    "/smoke/tool-calling",
+    response_model=DevToolCallingResult,
+    summary="[DEV] Smoke test LLM Tool Calling",
+    description=(
+        "Calls the configured OpenRouter API with a bound tool to verify if "
+        "function-calling works. Use `?model=...` to test a specific model. "
+        "Disabled in production."
+    ),
+)
+async def dev_smoke_tool_calling(model: str | None = None) -> DevToolCallingResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_tool_calling_sync, model)
 
 
 @router.get(

@@ -80,12 +80,10 @@ Evaluate each unit and its experts. Return ONLY a valid structured response matc
 Rules:
 - Order results from best to worst fit.
 - Include only units that are at least a low fit.
-- The "evidence" array should have 2-4 concrete reasons.
 - The "unit_id" values MUST be copied exactly from the candidate list above. Do NOT invent new IDs.
 - For "recommended_experts": recommend 1-3 experts per unit whose focus areas best match the opportunity requirements.
 - Expert "name" MUST be copied exactly from the candidate list. Do NOT invent names.
 - Expert "fit_reason" should be specific: mention the expert's skills and how they relate to the opportunity.
-- Expert "evidence" should cite concrete focus areas or experience from the data.
 - Expert "relevance_score" should reflect how closely the expert's skills match.
 
 {language_instruction}

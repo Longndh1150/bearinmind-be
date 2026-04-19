@@ -23,8 +23,8 @@ class LLMTrackingContext:
         usage_data = {}
         if hasattr(response, "usage") and response.usage is not None:
             usage_data = {
-                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0) or getattr(response.usage, "input_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0) or getattr(response.usage, "output_tokens", 0),
                 "total_tokens": getattr(response.usage, "total_tokens", 0),
                 # OpenRouter extension includes a cost in 'cost' attribute sometimes
                 "cost": getattr(response.usage, "cost", 0.0),
@@ -32,10 +32,26 @@ class LLMTrackingContext:
         elif isinstance(response, dict) and "usage" in response:
             usage_info = response["usage"]
             usage_data = {
-                "prompt_tokens": usage_info.get("prompt_tokens", 0),
-                "completion_tokens": usage_info.get("completion_tokens", 0),
+                "prompt_tokens": usage_info.get("prompt_tokens", 0) or usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("completion_tokens", 0) or usage_info.get("output_tokens", 0),
                 "total_tokens": usage_info.get("total_tokens", 0),
                 "cost": usage_info.get("cost", 0.0),
+            }
+        elif isinstance(response, dict) and "usage_metadata" in response:
+            usage_info = response["usage_metadata"]
+            usage_data = {
+                "prompt_tokens": usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("output_tokens", 0),
+                "total_tokens": usage_info.get("total_tokens", 0),
+                "cost": 0.0,
+            }
+        elif hasattr(response, "usage_metadata") and isinstance(response.usage_metadata, dict):
+            usage_info = response.usage_metadata
+            usage_data = {
+                "prompt_tokens": usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("output_tokens", 0),
+                "total_tokens": usage_info.get("total_tokens", 0),
+                "cost": 0.0,
             }
         return usage_data
 

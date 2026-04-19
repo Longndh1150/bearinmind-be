@@ -67,7 +67,7 @@ def _make_match_client(results: list[dict]) -> MagicMock:
     return client
 
 def test_score_and_rank_returns_empty_for_no_vector_results(sample_opportunity):
-    matched, experts, suggestions = score_and_rank(sample_opportunity, [])
+    matched, experts, suggestions, final_answer = score_and_rank(sample_opportunity, [])
     assert matched == []
     assert suggestions == []
 
@@ -93,7 +93,7 @@ def test_score_and_rank_maps_llm_output_correctly(sample_opportunity, sample_vec
         },
     ]
     with patch("app.ai.agents.matching._llm_client", return_value=_make_match_client(llm_payload)):
-        matched, experts, suggestions = score_and_rank(sample_opportunity, sample_vector_results)
+        matched, experts, suggestions, final_answer = score_and_rank(sample_opportunity, sample_vector_results)
 
     assert len(matched) == 2
     assert matched[0].unit_id == "unit-001"
@@ -113,7 +113,7 @@ def test_score_and_rank_handles_llm_exception(sample_opportunity, sample_vector_
     client.with_structured_output.return_value = mock_runnable
 
     with patch("app.ai.agents.matching._llm_client", return_value=client):
-        matched, experts, suggestions = score_and_rank(sample_opportunity, sample_vector_results)
+        matched, experts, suggestions, final_answer = score_and_rank(sample_opportunity, sample_vector_results)
 
     assert matched == []
     assert suggestions == []
@@ -127,7 +127,7 @@ def test_score_and_rank_unknown_unit_id_is_discarded(sample_opportunity, sample_
         }
     ]
     with patch("app.ai.agents.matching._llm_client", return_value=_make_match_client(llm_payload)):
-        matched, experts, suggestions = score_and_rank(sample_opportunity, sample_vector_results)
+        matched, experts, suggestions, final_answer = score_and_rank(sample_opportunity, sample_vector_results)
 
     assert matched == []
     assert suggestions == []

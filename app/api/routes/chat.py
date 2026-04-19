@@ -12,8 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context_analyzer import analyze_context
-from app.ai.agents.matching import run_matching
 from app.ai.agents.title_generator import generate_title
+from app.ai.graph import build_graph, GraphState
 from app.api.deps import get_session, require_active_user
 from app.core.config import settings
 from app.models.conversation import Conversation, ConversationMessage
@@ -316,18 +316,36 @@ async def _process_chat_turn(
     else:
         session_meta = _load_session_meta(conv)
         try:
-            ctx: ConversationContext = analyze_context(
-                message=message,
-                history=history,
-                session_meta=session_meta,
-            )
+            graph = build_graph()
+            
+            initial_state: GraphState = {
+                "user_message": message,
+                "history": history,
+                "session_meta": session_meta,
+                "context": None,
+                "extracted_entities": None,
+                "search_results": [],
+                "final_response": "",
+                "matched_units": [],
+                "matched_experts": [],
+                "suggestions": []
+            }
+            
+            logger.info("Executing LangGraph for msg=%s", message[:20])
+            start_graph = datetime.now(UTC)
+            final_state = graph.invoke(initial_state)
+            
+            ctx: ConversationContext | None = final_state.get("context")
+            if not ctx:
+                raise Exception("Graph execution failed to return a context.")
+                
             session_meta.language = ctx.language
             session_meta.last_intent = ctx.intent
             _save_session_meta(conv, session_meta)
 
             elapsed_analyze = (datetime.now(UTC) - start_analyze).total_seconds()
             logger.info(
-                "conv=%s intent=%s lang=%s confidence=%.2f",
+                "[Graph Exec] conv=%s intent=%s lang=%s confidence=%.2f",
                 conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
             )
 
@@ -335,14 +353,21 @@ async def _process_chat_turn(
 
             if intent == ChatIntent.find_units:
                 try:
-                    extracted, matched_units, matched_experts, suggestions, answer_text = run_matching(
-                        message=message,
-                        language=ctx.language,
-                    )
-                    elapsed_matching = (datetime.now(UTC) - start_matching).total_seconds()
-                    logger.info(f"conv={conv_id} matching_time={elapsed_matching:.3f}s")
+                    # Retrieve the results stored by LangGraph's nodes
+                    extracted = final_state.get("extracted_entities")
+                    matched_units = final_state.get("matched_units", [])
+                    matched_experts = final_state.get("matched_experts", [])
+                    suggestions = final_state.get("suggestions", [])
+                    answer_text = final_state.get("final_response", "Match complete.")
                     
-                    analysis_card = _build_analysis_card(extracted.title, suggestions, ctx.language)
+                    elapsed_matching = (datetime.now(UTC) - start_graph).total_seconds()
+                    logger.info(f"conv={conv_id} graph_matching_time={elapsed_matching:.3f}s")
+                    
+                    analysis_card = _build_analysis_card(
+                        extracted.title if extracted else None, 
+                        suggestions, 
+                        ctx.language
+                    )
                     unit_count = len(matched_units)
 
                     response = ChatResponse(

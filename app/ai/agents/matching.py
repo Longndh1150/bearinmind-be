@@ -350,55 +350,5 @@ def _build_answer(
         return "No matching units found. Please provide more details about the technology and market."
 
 
-# ── Main entry point ───────────────────────────────────────────────────────────
 
-
-from datetime import UTC, datetime
-
-import numpy as np
-
-def run_matching(
-    message: str,
-    language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> tuple[OpportunityExtract, list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion], str]:
-    """Full US1 pipeline: extract → vector search → rank → answer.
-
-    Args:
-        message: The user's opportunity description.
-        language: Detected language from context_analyzer (already known at this point).
-
-    Returns:
-        (extracted_opportunity, matched_units, matched_experts, suggestions, answer_text)
-    """
-    logger.info("run_matching: Extracting entities...")
-    t0 = datetime.now(UTC)
-    extracted = extract_entities(message, language=language)
-    t1 = datetime.now(UTC)
-    logger.info(f"run_matching: extract_entities took {(t1 - t0).total_seconds():.3f}s")
-    
-    query = " ".join(extracted.tech_stack + extracted.requirements)
-    if not query.strip():
-        query = message[:500]
-
-    logger.info("run_matching: Searching units (Vector Search)...")
-    t2 = datetime.now(UTC)
-    vector_results = search_units(query, top_k=3)
-    t3 = datetime.now(UTC)
-    logger.info(f"run_matching: search_units took {(t3 - t2).total_seconds():.3f}s")
-    
-    logger.info("run_matching: Scoring and ranking...")
-    t4 = datetime.now(UTC)
-    matched_units, matched_experts, suggestions = score_and_rank(
-        extracted, vector_results, language=language,
-    )
-    t5 = datetime.now(UTC)
-    logger.info(f"run_matching: score_and_rank took {(t5 - t4).total_seconds():.3f}s")
-    
-    logger.info("run_matching: Building final answer...")
-    t6 = datetime.now(UTC)
-    answer = _build_answer(message, extracted, matched_units, matched_experts, language=language)
-    t7 = datetime.now(UTC)
-    logger.info(f"run_matching: _build_answer took {(t7 - t6).total_seconds():.3f}s")
-    
-    return extracted, matched_units, matched_experts, suggestions, answer
 

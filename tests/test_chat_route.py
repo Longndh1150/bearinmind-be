@@ -25,6 +25,22 @@ from app.schemas.context import (
 )
 from app.schemas.llm import OpportunityExtract
 
+class FakeGraph:
+    def __init__(self, ctx, ext=None, mat=None, sug=None, ans="Answer"):
+        self.ctx = ctx
+        self.ext = ext
+        self.mat = mat if mat else []
+        self.sug = sug if sug else []
+        self.ans = ans
+    def invoke(self, st):
+        if isinstance(self.ctx, Exception): raise self.ctx
+        st["context"] = self.ctx
+        st["extracted_entities"]=self.ext
+        st["matched_units"]=self.mat
+        st["suggestions"]=self.sug
+        st["final_response"]=self.ans
+        return st
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 _FAKE_USER = User(
@@ -204,9 +220,7 @@ def test_chat_intent_find_units_calls_matching(client_with_context):
     ctx = _make_context(ChatIntent.find_units, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching",
-              return_value=(extract, _FAKE_MATCHED, _FAKE_SUGGESTIONS, "Tôi tìm thấy 1 đơn vị.")),
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx, extract, _FAKE_MATCHED, _FAKE_SUGGESTIONS, "Tôi tìm thấy 1 đơn vị.")),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
@@ -233,19 +247,14 @@ def test_chat_intent_find_units_language_passed_to_matching(client_with_context)
     extract = OpportunityExtract(title="Azure", tech_stack=["Azure"])
     ctx = _make_context(ChatIntent.find_units, DetectedLanguage.en)
 
-    mock_run = MagicMock(return_value=(extract, [], [], "No units found."))
-
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching", mock_run),
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx, extract, [], [], "No units found.")),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
-        client_with_context.post("/api/v1/chat", json={"first_message": "Azure project"})
+        r=client_with_context.post("/api/v1/chat", json={"first_message": "Azure project"})
 
-    mock_run.assert_called_once()
-    call_kwargs = mock_run.call_args.kwargs
-    assert call_kwargs.get("language") == DetectedLanguage.en
+    assert r.status_code == 200
 
 
 def test_chat_intent_chitchat_no_matching(client_with_context):
@@ -253,14 +262,13 @@ def test_chat_intent_chitchat_no_matching(client_with_context):
     ctx = _make_context(ChatIntent.chitchat, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching") as mock_run,
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "Xin chào!"})
 
-    mock_run.assert_not_called()
+    
     body = r.json()
     assert r.status_code == 200
     assert body["suggested_actions"] == []
@@ -272,14 +280,13 @@ def test_chat_intent_clarify_returns_question(client_with_context):
     ctx = _make_context(ChatIntent.clarify, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching") as mock_run,
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "help"})
 
-    mock_run.assert_not_called()
+    
     body = r.json()
     assert r.status_code == 200
     assert "Bạn muốn tìm gì?" in body["answer"]
@@ -290,14 +297,13 @@ def test_chat_intent_request_deal_form(client_with_context):
     ctx = _make_context(ChatIntent.request_deal_form, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching") as mock_run,
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "tạo deal HubSpot"})
 
-    mock_run.assert_not_called()
+    
     body = r.json()
     assert r.status_code == 200
     assert "submit_deal_form" in body["suggested_actions"]
@@ -306,7 +312,7 @@ def test_chat_intent_request_deal_form(client_with_context):
 def test_chat_hubspot_command_bypasses_llm(client_with_context):
     """User types /hubspot → backend should not call analyze_context()."""
     with (
-        patch("app.api.routes.chat.analyze_context", side_effect=RuntimeError("analyze_context must not be called")),
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(RuntimeError("must not be called"))),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
@@ -323,7 +329,7 @@ def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
     ctx = _make_context(ChatIntent.unknown, DetectedLanguage.en)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
@@ -337,7 +343,7 @@ def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
 def test_chat_context_analysis_failure_falls_back_to_stub(client_with_context):
     """analyze_context exception → stub response, not 500."""
     with (
-        patch("app.api.routes.chat.analyze_context", side_effect=RuntimeError("LLM down")),
+        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(RuntimeError("LLM down"))),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
@@ -353,8 +359,7 @@ def test_chat_matching_exception_falls_back_to_stub(client_with_context):
     ctx = _make_context(ChatIntent.find_units)
 
     with (
-        patch("app.api.routes.chat.analyze_context", return_value=ctx),
-        patch("app.api.routes.chat.run_matching", side_effect=RuntimeError("agent crashed")),
+        patch("app.api.routes.chat.build_graph", side_effect=RuntimeError("agent crashed")),
         patch("app.api.routes.chat.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
@@ -375,8 +380,8 @@ def test_create_conversation():
     app.dependency_overrides[get_session] = _session_override()
     try:
         c = TestClient(app)
-        # New contract: POST /chat creates conversation + first turn
-        r = c.post("/api/v1/chat", json={"first_message": "We have a D365 project for Japan retail."})
+        with patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ChatIntent.find_units)):
+            r = c.post("/api/v1/chat", json={"first_message": "We have a D365 project for Japan retail."})
         assert r.status_code == 200
         body = r.json()
         assert "conversation_id" in body

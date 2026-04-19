@@ -17,7 +17,7 @@ import json
 import logging
 from typing import Literal
 
-from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 from pydantic import BaseModel, Field
 
 from app.ai.prompts.matching import (
@@ -37,18 +37,15 @@ logger = logging.getLogger(__name__)
 _DEFAULT_LANGUAGE = DetectedLanguage.vi
 
 
-from app.core.llm_tracking import instrument_openai_client
-
-
-def _llm_client() -> ChatOpenAI:
-    """Build an OpenAI-compatible client from BE settings.
-
-    Works with OpenAI, OpenRouter, Groq (set LLM_BASE_URL + LLM_API_KEY).
+def _llm_client() -> ChatOpenRouter:
+    """Build an OpenRouter-compatible client from BE settings.
     """
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return ChatOpenAI(**kwargs, model=settings.llm_model_primary, max_tokens=2048, max_retries=1)
+    # instrumenting pure LangChain object with llm_tracking isn't easily monkeypatched like openrouter sdk
+    # we leave it out here for now
+    return ChatOpenRouter(**kwargs, model=settings.llm_model_primary, max_retries=1)
 
 
 # ── Step 1: entity extraction ──────────────────────────────────────────────────

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 from langchain_core.messages import HumanMessage, AIMessage
 
 from app.ai.prompts.context import classify_intent_prompt
@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 _HISTORY_TURNS = 4
 
 
-def _llm_client() -> ChatOpenAI:
+def _llm_client() -> ChatOpenRouter:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return ChatOpenAI(**kwargs, model=settings.llm_model_secondary, max_tokens=1024, max_retries=1)
+    return ChatOpenRouter(**kwargs, model=settings.llm_model_secondary, max_tokens=1024, max_retries=1)
 
 
 def _build_history_summary(history: list[ChatMessage]) -> list:

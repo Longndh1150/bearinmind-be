@@ -10,7 +10,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from openai import OpenAI
+from openrouter import OpenRouter
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -255,10 +255,10 @@ def _smoke_llm_sync() -> DevSmokeResult:
     kwargs: dict = {"api_key": settings.llm_api_key}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    from app.core.llm_tracking import instrument_openai_client
-    client = instrument_openai_client(OpenAI(**kwargs))
+    from app.core.llm_tracking import instrument_openrouter_client
+    client = instrument_openrouter_client(OpenRouter(api_key=settings.llm_api_key))
     try:
-        resp = client.chat.completions.create(
+        resp = client.chat.send(
             model=settings.llm_model_secondary,
             messages=[{"role": "user", "content": "Reply with exactly: ok"}],
             max_tokens=8,
@@ -276,6 +276,46 @@ def _smoke_llm_sync() -> DevSmokeResult:
     )
 
 
+def _smoke_embedding_sync(model_override: str | None = None) -> DevSmokeResult:
+    """Blocking LLM ping (runs in a thread pool from async route)."""
+    if not (settings.llm_api_key or "").strip():
+        return DevSmokeResult(ok=False, message="LLM_API_KEY is not set or empty.", detail=None)
+
+    from app.core.llm_tracking import instrument_openrouter_client
+    client = instrument_openrouter_client(OpenRouter(api_key=settings.llm_api_key))
+    target_model = model_override or settings.llm_embedding_model
+
+    try:
+        resp = client.embeddings.generate(
+            model=target_model,
+            input="Review and score",
+        )
+        dims = len(resp.data[0].embedding) if resp.data else 0
+    except Exception as exc:
+        logger.warning("Embedding smoke failed: %s", exc)
+        return DevSmokeResult(ok=False, message="Embedding request failed.", detail=str(exc)[:400])
+
+    return DevSmokeResult(
+        ok=True,
+        message="Embedding API works.",
+        detail=f"model={target_model!r}, dimensions={dims}",
+    )
+
+
+@router.get(
+    "/smoke/embeddings",
+    response_model=DevSmokeResult,
+    summary="[DEV] Smoke test Embedding API",
+    description=(
+        "Calls the configured OpenRouter API to generate embeddings. "
+        "Use to verify LLM_API_KEY. Disabled in production."
+    ),
+)
+async def dev_smoke_embeddings(model: str | None = None) -> DevSmokeResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_embedding_sync, model_override=model)
+
+
 @router.get(
     "/smoke/llm",
     response_model=DevSmokeResult,
@@ -289,52 +329,6 @@ def _smoke_llm_sync() -> DevSmokeResult:
 async def dev_smoke_llm() -> DevSmokeResult:
     _guard_non_production()
     return await asyncio.to_thread(_smoke_llm_sync)
-
-
-def _smoke_embeddings_sync(model_override: str | None = None) -> DevSmokeResult:
-    """Blocking Embeddings ping (runs in a thread pool from async route)."""
-    if not (settings.llm_api_key or "").strip():
-        return DevSmokeResult(ok=False, message="LLM_API_KEY is not set or empty.", detail=None)
-
-    kwargs: dict = {"api_key": settings.llm_api_key}
-    if settings.llm_base_url:
-        kwargs["base_url"] = settings.llm_base_url
-    from app.core.llm_tracking import instrument_openai_client
-    client = instrument_openai_client(OpenAI(**kwargs))
-    
-    target_model = model_override or settings.llm_embedding_model
-    
-    try:
-        resp = client.embeddings.create(
-            model=target_model,
-            input="Test embedding"
-        )
-        logger.debug("Embedding response: %s", resp)
-        dim = len(resp.data[0].embedding)
-    except Exception as exc:
-        logger.warning("Embeddings smoke failed: %s", exc)
-        return DevSmokeResult(ok=False, message="Embeddings request failed.", detail=str(exc)[:400])
-
-    return DevSmokeResult(
-        ok=True,
-        message="Embeddings API works.",
-        detail=f"model={target_model!r}, dim={dim}",
-    )
-
-
-@router.get(
-    "/smoke/embeddings",
-    response_model=DevSmokeResult,
-    summary="[DEV] Smoke test Embeddings API",
-    description=(
-        "Calls the configured OpenAI-compatible API to generate embeddings. "
-        "Use to verify LLM_API_KEY and LLM_BASE_URL support embeddings. "
-        "Disabled in production."
-    ),
-)
-async def dev_smoke_embeddings(model: str | None = None) -> DevSmokeResult:
-    _guard_non_production()
-    return await asyncio.to_thread(_smoke_embeddings_sync, model)
 
 
 @router.get(

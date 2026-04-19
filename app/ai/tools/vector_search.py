@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from openai import OpenAI
 
 try:
     import chromadb
@@ -48,10 +47,10 @@ def _get_collection():
     class OpenRouterEmbeddingFunction:
 
         def __init__(self) -> None:
-            from app.core.llm_tracking import instrument_openai_client
-            self._client = instrument_openai_client(OpenAI(
+            from openrouter import OpenRouter
+            from app.core.llm_tracking import instrument_openrouter_client
+            self._client = instrument_openrouter_client(OpenRouter(
                 api_key=settings.llm_api_key or "no-key",
-                base_url=settings.llm_base_url or None,
             ))
             self._model = settings.llm_embedding_model
 
@@ -68,9 +67,9 @@ def _get_collection():
             
             embeddings = []
             for text in input:
-                resp = self._client.embeddings.create(
+                resp = self._client.embeddings.generate(
                     model=self._model,
-                    input=text,  # OpenRouter requires single string per request
+                    input=text,  # OpenRouter SDK expects single string per request as per docs
                 )
                 embeddings.append(np.array(resp.data[0].embedding))
             return embeddings

@@ -15,6 +15,7 @@ class GraphState(TypedDict):
     user_message: str
     history: list[ChatMessage]
     session_meta: SessionMeta | None
+    user_preferred_language: DetectedLanguage | None
     
     # Context
     context: ConversationContext | None
@@ -30,28 +31,36 @@ class GraphState(TypedDict):
     suggestions: list
 
 def node_analyze_context(state: GraphState) -> dict:
+    logger.info("[Graph] Entering node_analyze_context")
     from app.ai.agents.context_analyzer import analyze_context
     ctx = analyze_context(
         message=state["user_message"],
         history=state.get("history", []),
-        session_meta=state.get("session_meta")
+        session_meta=state.get("session_meta"),
+        user_preferred_language=state.get("user_preferred_language")
     )
+    logger.info(f"[Graph] Exiting node_analyze_context: intent={ctx.intent.value}, lang={ctx.language.value}")
     return {"context": ctx}
 
 def route_intent(state: GraphState) -> str:
     ctx = state.get("context")
     if ctx and ctx.intent == ChatIntent.find_units:
+        logger.info("[Graph] Routing to extract_entities")
         return "extract_entities"
+    logger.info("[Graph] Routing to handle_other_intent")
     return "handle_other_intent"
 
 def node_extract_entities(state: GraphState) -> dict:
+    logger.info("[Graph] Entering node_extract_entities")
     from app.ai.agents.matching import extract_entities
     ctx = state["context"]
     lang = ctx.language if ctx else DetectedLanguage.vi
     extracted = extract_entities(state["user_message"], language=lang)
+    logger.info("[Graph] Exiting node_extract_entities")
     return {"extracted_entities": extracted}
 
 def node_vector_search(state: GraphState) -> dict:
+    logger.info("[Graph] Entering node_vector_search")
     from app.ai.tools.vector_search import search_units
     extracted = state.get("extracted_entities")
     message = state["user_message"]
@@ -64,19 +73,21 @@ def node_vector_search(state: GraphState) -> dict:
         query = message[:500]
         
     results = search_units(query, top_k=3)
+    logger.info(f"[Graph] Exiting node_vector_search with {len(results)} results")
     return {"search_results": results}
 
 def node_summarize(state: GraphState) -> dict:
-    from app.ai.agents.matching import score_and_rank, _build_answer
+    logger.info("[Graph] Entering node_summarize")
+    from app.ai.agents.matching import score_and_rank
     extracted = state["extracted_entities"]
     results = state["search_results"]
     ctx = state["context"]
     lang = ctx.language if ctx else DetectedLanguage.vi
     
-    matched_units, matched_experts, suggestions = score_and_rank(
+    matched_units, matched_experts, suggestions, answer = score_and_rank(
         extracted, results, language=lang
     )
-    answer = _build_answer(state["user_message"], extracted, matched_units, matched_experts, language=lang)
+    logger.info("[Graph] Exiting node_summarize")
     
     return {
         "final_response": answer,

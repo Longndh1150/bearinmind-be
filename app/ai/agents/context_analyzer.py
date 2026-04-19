@@ -32,7 +32,7 @@ def _llm_client() -> ChatOpenAI:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return ChatOpenAI(**kwargs, model=settings.llm_model_secondary)
+    return ChatOpenAI(**kwargs, model=settings.llm_model_secondary, max_tokens=1024, max_retries=1)
 
 
 def _build_history_summary(history: list[ChatMessage]) -> list:
@@ -65,20 +65,30 @@ def analyze_context(
     message: str,
     history: list[ChatMessage],
     session_meta: SessionMeta | None = None,
+    user_preferred_language: DetectedLanguage | None = None,
 ) -> ConversationContext:
     """LLM call 0: classify intent + detect language.
 
     Args:
         message: The current user message.
         history: Recent chat history (stateless clients may pass []).
-        session_meta: Persisted session metadata from prior turns. Used to hint
-                      at the prior language so the LLM stays consistent.
+        session_meta: Persisted session metadata from prior turns.
+        user_preferred_language: The user's preferred language from their profile.
 
     Returns:
         ConversationContext with intent, language, confidence, and optional
         opportunity_hint / clarification_needed fields.
     """
-    session_language = session_meta.language.value if session_meta else "unknown"
+    # 1. History language (from session_meta)
+    # 2. User preferred language
+    # 3. Default "vi"
+    if session_meta and session_meta.language:
+        session_language = session_meta.language.value
+    elif user_preferred_language:
+        session_language = user_preferred_language.value
+    else:
+        session_language = DetectedLanguage.vi.value
+
     history_msgs = _build_history_summary(history)
 
     client = _llm_client()

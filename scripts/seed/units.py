@@ -500,15 +500,9 @@ async def seed_units() -> None:
         await session.commit()
 
         print("Re-indexing units into vector store ...")
-        mode = settings.chroma_mode.strip().lower()
-        if mode == "persistent":
-            persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
-            persist_dir.mkdir(parents=True, exist_ok=True)
-            client = chromadb.PersistentClient(path=str(persist_dir))
-        else:
-            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        from app.ai.tools.vector_search import get_chroma_client
         try:
-            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+            client = get_chroma_client()
             client.delete_collection(name="unit_capabilities")
             print("Đã xóa collection cũ thành công.")
         except Exception as e:

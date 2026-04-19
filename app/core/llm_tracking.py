@@ -3,6 +3,10 @@ import time
 from functools import wraps
 from typing import Any
 
+from openai import OpenAI
+from openai.types import CreateEmbeddingResponse
+from openai.types.chat import ChatCompletion
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +80,7 @@ class LLMLangchainCallbackStub:
         model = response.llm_output.get("model_name", "unknown") if hasattr(response, "llm_output") and response.llm_output else "unknown"
         LLMTrackingContext.log_call("langchain.llm.call", elapsed_s, usage, model)
 
-def intercept_openai_chat_create(original_create):
+def intercept_openai_chat_create(original_create: ChatCompletion) -> ChatCompletion:
     """
     Wraps the OpenAI chat.completions.create method to intercept responses,
     track execution time and retrieve usage metrics automatically.
@@ -111,7 +115,7 @@ def intercept_openai_chat_create(original_create):
     return wrapper
 
 
-def intercept_openai_embeddings_create(original_create):
+def intercept_openai_embeddings_create(original_create: CreateEmbeddingResponse) -> CreateEmbeddingResponse:
     """
     Wraps the OpenAI embeddings.create method for tracking purposes.
     """
@@ -130,7 +134,7 @@ def intercept_openai_embeddings_create(original_create):
     return wrapper
 
 
-def instrument_openai_client(client) -> None:
+def instrument_openai_client(client: OpenAI) -> OpenAI:
     """
     Monkey-patches an instantiated OpenAI client instance to add automated
     usage and timing logs overhead-free.

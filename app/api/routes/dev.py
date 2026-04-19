@@ -14,7 +14,7 @@ from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection
+from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection, get_chroma_client
 from app.core.config import settings
 from app.db.session import get_session
 from app.integrations.hubspot_client import HubSpotAPIError
@@ -196,7 +196,7 @@ def dev_reset_chroma() -> DevActionResult:
     try:
         import chromadb as _chromadb
 
-        client = _chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        client = get_chroma_client()
         # Count before deleting
         try:
             col = client.get_collection(COLLECTION_NAME)
@@ -208,7 +208,7 @@ def dev_reset_chroma() -> DevActionResult:
             client.delete_collection(COLLECTION_NAME)
         except Exception:
             pass  # already gone
-        client.create_collection(COLLECTION_NAME)
+        _get_collection()
     except Exception as exc:
         logger.exception("Chroma reset failed")
         raise HTTPException(status_code=502, detail=f"ChromaDB error: {exc}") from exc
@@ -289,6 +289,52 @@ def _smoke_llm_sync() -> DevSmokeResult:
 async def dev_smoke_llm() -> DevSmokeResult:
     _guard_non_production()
     return await asyncio.to_thread(_smoke_llm_sync)
+
+
+def _smoke_embeddings_sync(model_override: str | None = None) -> DevSmokeResult:
+    """Blocking Embeddings ping (runs in a thread pool from async route)."""
+    if not (settings.llm_api_key or "").strip():
+        return DevSmokeResult(ok=False, message="LLM_API_KEY is not set or empty.", detail=None)
+
+    kwargs: dict = {"api_key": settings.llm_api_key}
+    if settings.llm_base_url:
+        kwargs["base_url"] = settings.llm_base_url
+    from app.core.llm_tracking import instrument_openai_client
+    client = instrument_openai_client(OpenAI(**kwargs))
+    
+    target_model = model_override or settings.llm_embedding_model
+    
+    try:
+        resp = client.embeddings.create(
+            model=target_model,
+            input="Test embedding"
+        )
+        logger.debug("Embedding response: %s", resp)
+        dim = len(resp.data[0].embedding)
+    except Exception as exc:
+        logger.warning("Embeddings smoke failed: %s", exc)
+        return DevSmokeResult(ok=False, message="Embeddings request failed.", detail=str(exc)[:400])
+
+    return DevSmokeResult(
+        ok=True,
+        message="Embeddings API works.",
+        detail=f"model={target_model!r}, dim={dim}",
+    )
+
+
+@router.get(
+    "/smoke/embeddings",
+    response_model=DevSmokeResult,
+    summary="[DEV] Smoke test Embeddings API",
+    description=(
+        "Calls the configured OpenAI-compatible API to generate embeddings. "
+        "Use to verify LLM_API_KEY and LLM_BASE_URL support embeddings. "
+        "Disabled in production."
+    ),
+)
+async def dev_smoke_embeddings(model: str | None = None) -> DevSmokeResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_embeddings_sync, model)
 
 
 @router.get(

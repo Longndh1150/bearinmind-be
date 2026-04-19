@@ -48,7 +48,7 @@ def _llm_client() -> ChatOpenAI:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return ChatOpenAI(**kwargs, model=settings.llm_model_primary)
+    return ChatOpenAI(**kwargs, model=settings.llm_model_primary, max_tokens=2048, max_retries=1)
 
 
 # ── Step 1: entity extraction ──────────────────────────────────────────────────
@@ -159,15 +159,19 @@ class LLMRankItem(BaseModel):
 
 class LLMScoreRankResult(BaseModel):
     results: list[LLMRankItem] = Field(default_factory=list)
+    final_answer: str = Field(
+        default="", 
+        description="A friendly, natural-language conversational reply answering the user directly in the exact requested language, stating the summary of found units and recommended experts."
+    )
 
 def score_and_rank(
     opportunity: OpportunityExtract,
     vector_results: list[VectorSearchResult],
     language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> tuple[list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion]]:
-    """Return (matched_units, matched_experts, suggestions) for the chat response."""
+) -> tuple[list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion], str]:
+    """Return (matched_units, matched_experts, suggestions, final_answer) for the chat response."""
     if not vector_results:
-        return [], [], []
+        return [], [], [], "No units or experts found."
 
     client = _llm_client()
     units_context = _build_units_context(vector_results)
@@ -182,9 +186,10 @@ def score_and_rank(
         })
     except Exception:
         logger.exception("Score/rank LLM call failed; returning empty results")
-        return [], [], []
+        return [], [], [], "There was an error."
 
     llm_results: list[LLMRankItem] = data.results
+    final_answer = data.final_answer
 
     # Authoritative lookup: unit_id → VectorSearchResult (IDs come from the system, not LLM)
     meta_by_id = {r.unit_id: r for r in vector_results}
@@ -284,7 +289,7 @@ def score_and_rank(
             )
         )
 
-    return matched_units, all_matched_experts, suggestions
+    return matched_units, all_matched_experts, suggestions, final_answer
 
 
 # ── Step 4: natural-language answer ───────────────────────────────────────────

@@ -152,7 +152,7 @@ def client_no_key():
 
     app.dependency_overrides[require_active_user] = _auth_override
     app.dependency_overrides[get_session] = _session_override()
-    with patch("app.api.routes.chat.settings") as mock_settings:
+    with patch("app.services.chat_service.settings") as mock_settings:
         mock_settings.llm_api_key = ""
         yield TestClient(app)
     app.dependency_overrides.clear()
@@ -165,7 +165,7 @@ def client_with_context(intent: ChatIntent = ChatIntent.find_units):
 
     app.dependency_overrides[require_active_user] = _auth_override
     app.dependency_overrides[get_session] = _session_override()
-    with patch("app.api.routes.chat.generate_title", return_value="Test Title"):
+    with patch("app.services.chat_service.generate_title", return_value="Test Title"):
         yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -220,8 +220,8 @@ def test_chat_intent_find_units_calls_matching(client_with_context):
     ctx = _make_context(ChatIntent.find_units, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx, extract, _FAKE_MATCHED, _FAKE_SUGGESTIONS, "Tôi tìm thấy 1 đơn vị.")),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx, extract, _FAKE_MATCHED, _FAKE_SUGGESTIONS, "Tôi tìm thấy 1 đơn vị.")),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "D365 Japan retail"})
@@ -248,8 +248,8 @@ def test_chat_intent_find_units_language_passed_to_matching(client_with_context)
     ctx = _make_context(ChatIntent.find_units, DetectedLanguage.en)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx, extract, [], [], "No units found.")),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx, extract, [], [], "No units found.")),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r=client_with_context.post("/api/v1/chat", json={"first_message": "Azure project"})
@@ -262,8 +262,8 @@ def test_chat_intent_chitchat_no_matching(client_with_context):
     ctx = _make_context(ChatIntent.chitchat, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx)),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "Xin chào!"})
@@ -280,8 +280,8 @@ def test_chat_intent_clarify_returns_question(client_with_context):
     ctx = _make_context(ChatIntent.clarify, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx)),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "help"})
@@ -297,8 +297,8 @@ def test_chat_intent_request_deal_form(client_with_context):
     ctx = _make_context(ChatIntent.request_deal_form, DetectedLanguage.vi)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx)),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "tạo deal HubSpot"})
@@ -312,8 +312,8 @@ def test_chat_intent_request_deal_form(client_with_context):
 def test_chat_hubspot_command_bypasses_llm(client_with_context):
     """User types /hubspot → backend should not call analyze_context()."""
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(RuntimeError("must not be called"))),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(RuntimeError("must not be called"))),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "/hubspot"})
@@ -329,8 +329,8 @@ def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
     ctx = _make_context(ChatIntent.unknown, DetectedLanguage.en)
 
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ctx)),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(ctx)),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "???"})
@@ -343,8 +343,8 @@ def test_chat_intent_unknown_returns_rephrase_message(client_with_context):
 def test_chat_context_analysis_failure_falls_back_to_stub(client_with_context):
     """analyze_context exception → stub response, not 500."""
     with (
-        patch("app.api.routes.chat.build_graph", return_value=FakeGraph(RuntimeError("LLM down"))),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", return_value=FakeGraph(RuntimeError("LLM down"))),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "anything"})
@@ -359,8 +359,8 @@ def test_chat_matching_exception_falls_back_to_stub(client_with_context):
     ctx = _make_context(ChatIntent.find_units)
 
     with (
-        patch("app.api.routes.chat.build_graph", side_effect=RuntimeError("agent crashed")),
-        patch("app.api.routes.chat.settings") as ms,
+        patch("app.services.chat_service.build_graph", side_effect=RuntimeError("agent crashed")),
+        patch("app.services.chat_service.settings") as ms,
     ):
         ms.llm_api_key = "fake-key"
         r = client_with_context.post("/api/v1/chat", json={"first_message": "anything"})
@@ -380,7 +380,7 @@ def test_create_conversation():
     app.dependency_overrides[get_session] = _session_override()
     try:
         c = TestClient(app)
-        with patch("app.api.routes.chat.build_graph", return_value=FakeGraph(ChatIntent.find_units)):
+        with patch("app.services.chat_service.build_graph", return_value=FakeGraph(ChatIntent.find_units)):
             r = c.post("/api/v1/chat", json={"first_message": "We have a D365 project for Japan retail."})
         assert r.status_code == 200
         body = r.json()

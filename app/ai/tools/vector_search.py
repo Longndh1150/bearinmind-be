@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _memory_store: dict[str, dict[str, Any]] = {}
 
 
-def _get_collection():
+def get_chroma_client():
     if chromadb is None:
         raise RuntimeError("chromadb package is not available")
 
@@ -37,9 +37,13 @@ def _get_collection():
     if mode == "persistent":
         persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
         persist_dir.mkdir(parents=True, exist_ok=True)
-        client = chromadb.PersistentClient(path=str(persist_dir))
+        return chromadb.PersistentClient(path=str(persist_dir))
     else:
-        client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        return chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+
+
+def _get_collection():
+    client = get_chroma_client()
 
     class OpenRouterEmbeddingFunction:
 

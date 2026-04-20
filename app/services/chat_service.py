@@ -282,12 +282,24 @@ class ChatService:
         )
         
         contact_name = matched_unit.get("contact_name") or "anh/chị Manager"
-        skills = ", ".join(extracted.tech_stack) if extracted and extracted.tech_stack else (extracted.scope if extracted and extracted.scope else "liên quan")
+        sales_name = user.email.split('@')[0].capitalize() if user.email else "Sales"
         
         if ctx.language == DetectedLanguage.vi:
-            bear_msg = f"Hi anh {contact_name}, hiện tại đang có cơ hội dự án phù hợp với đơn vị mình, cần skill {skills}. Anh có thể xem qua và liên hệ với nhóm Sales, cụ thể là {user.email} để trao đổi thêm nhé!"
+            bear_msg = (
+                f"🐾 Gấu xin chào anh {contact_name}! 🐾\n"
+                f"Em vừa đánh hơi thấy một cơ hội dự án cực kỳ "
+                f"phù hợp với quân số nhà mình luôn đó ạ!\n\n"
+                f"🍯 Anh {contact_name} xem qua thử nghen! Nếu anh hứng thú "
+                f"thì ping ngay {sales_name} team Sales ({user.email}) để múc cái deal này nha! 🐻✨"
+            )
         else:
-            bear_msg = f"Hi {contact_name}, there's a new opportunity fitting your division, requiring {skills} skills. Please review and contact the Sales team, specifically {user.email} for more details!"
+            bear_msg = (
+                f"🐾 Hello {contact_name}! Bear incoming! 🐾\n"
+                f"I just sniffed out an awesome project opportunity "
+                f"that perfectly matches your unit!\n\n"
+                f"🍯 Please take a look! If you're interested, "
+                f"ping {sales_name} from Sales ({user.email}) to catch this deal! 🐻✨"
+            )
             
         details.bear_message = bear_msg
         

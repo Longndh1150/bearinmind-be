@@ -180,17 +180,17 @@ def analyze_context_and_extract(
         
         extracted_data = None
         
-        if tool_name == "ToolFindUnits":
+        if tool_name in ["ToolFindUnits", "find_units"]:
             ctx.intent = ChatIntent.find_units
             opportunity_extract_data = args.get("opportunity_extract", {})
             extracted_data = OpportunityExtract(**opportunity_extract_data)
             
-        elif tool_name == "ToolSaveDraft":
+        elif tool_name in ["ToolSaveDraft", "save_draft"]:
             ctx.intent = ChatIntent.save_draft
             save_draft_extract_data = args.get("save_draft_extract", {})
             extracted_data = OpportunityExtract(**save_draft_extract_data)
             
-        elif tool_name == "ToolSendNotification":
+        elif tool_name in ["ToolSendNotification", "send_notification"]:
             # Phase 3 Skill: Authenticate/Request Missing info if required fields for Notification are not present
             notification_data = args.get("notification_extract", {})
             extracted_data = OpportunityExtract(**notification_data)
@@ -210,11 +210,11 @@ def analyze_context_and_extract(
                 ctx.intent = ChatIntent.send_notification
                 ctx.opportunity_hint = target  # Reuse opportunity_hint to pass target down temporarily or update Context schema later.
                 
-        elif tool_name == "ToolClarify":
+        elif tool_name in ["ToolClarify", "clarify"]:
             ctx.intent = ChatIntent.clarify
             ctx.clarification_needed = args.get("clarification_needed", "Could not understand.")
             
-        elif tool_name == "ToolGeneralChat":
+        elif tool_name in ["ToolGeneralChat", "general_chat"]:
             ctx.intent = ChatIntent.unknown
             
         else:

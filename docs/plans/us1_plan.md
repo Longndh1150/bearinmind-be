@@ -34,3 +34,45 @@ otification_service.create(...)) để tạo thông báo thực sự lưu vào D
   - Lượt 1-2: Trích xuất context -> search semantic -> trả ra context chứa UUID của DN1.
   - Lượt 3-4: Bổ sung intent "Kết nối cơ hội", nhận diện đối tượng là DN1 (từ UUID đã lưu) -> Triggers check missing info -> Xin thêm info.
   - Lượt 5-6: Extract đủ info -> Triggers action gọi Notification Tạo API -> Trả lời user thành công.
+
+## 6. Scenario Demo – US1: Sales tìm đơn vị + làm rõ cơ hội
+
+**1. Sales chat với Gấu:**
+> "Gấu ơi, tôi đang có một cơ hội ở Tokyo về Microsoft Dynamics 365, cần một Senior có thể tham gia làm proposal. Bạn giúp tôi xem đơn vị nào phù hợp không?"
+
+**2. Gấu trả lời:**
+> Anh ơi, với cơ hội Microsoft Dynamics 365 tại thị trường Nhật, em thấy có một số đơn vị phù hợp như sau:
+> 
+> **1. DN1**
+> - Là đơn vị có năng lực mạnh nhất hiện tại về D365
+> - Có 3 Senior có thể tham gia presale và proposal
+> - Có hơn 20 members có kinh nghiệm
+> - Đã triển khai các case:
+>   - D365 CRM
+>   - D365 Business Central
+> - Đầu mối liên hệ: ThangLB (Section Lead), PhongND (Division Lead)
+> 
+> **2. D5**
+> - Có kinh nghiệm triển khai các dự án liên quan D365
+> - Hiện chưa có Senior chuyên sâu
+> - Có hơn 10 members có kinh nghiệm
+> - Đầu mối liên hệ: MinhLN (Delivery Lead)
+> 
+> 👉 **Gợi ý**: Với nhu cầu cần Senior tham gia proposal, DN1 sẽ là lựa chọn phù hợp hơn.
+> Anh có muốn em kết nối nhanh không?
+
+**3. Sales trả lời:**
+> "Có, hãy thông báo tới DN1 hộ tôi nhé Gấu"
+
+**4. Gấu trả lời:**
+> Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé:
+> - Timeline dự kiến cho proposal (deadline khi nào?)
+> - Phạm vi yêu cầu (CRM, BC hay full D365?)
+> - Khách hàng đang ở giai đoạn nào (đang tìm hiểu hay đã có requirement rõ?)
+> - Có cần estimate sơ bộ hoặc demo không?
+
+**5. Sales trả lời:**
+> "Deadline proposal trong 1 tuần, scope là CRM trước. Khách đang ở giai đoạn tìm hiểu, cần estimate sơ bộ."
+
+**6. Gấu trả lời:**
+> Dạ vâng, thông báo đã được gửi tới DN1.

@@ -159,7 +159,7 @@ class ChatService:
     @staticmethod
     def _handle_unknown(conv_id: UUID, language: DetectedLanguage) -> ChatResponse:
         if language == DetectedLanguage.vi:
-            answer = "Tôi chưa hiểu yêu cầu của bạn. Bạn có thể diễn đạt lại không? Ví dụ: mô tả dự án, yêu cầu công nghệ, thị trường mục tiêu."
+            answer = "Gấu chưa hiểu yêu cầu của anh ạ. Anh có thể diễn đạt lại không? Ví dụ: mô tả dự án, yêu cầu công nghệ, thị trường mục tiêu."
         elif language == DetectedLanguage.ja:
             answer = "ご要望が理解できませんでした。プロジェクトや技術要件について詳しく教えていただけますか？"
         else:

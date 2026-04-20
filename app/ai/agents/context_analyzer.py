@@ -50,10 +50,7 @@ class ToolSaveDraft(BaseModel):
 class ToolSendNotification(BaseModel):
     """Call this tool when the user intends to notify, connect, or request a unit/division for a project, or when providing missing info for a notification."""
     language: DetectedLanguage = Field(description="Detected language of the user message.")
-    target_unit: str | None = Field(
-        default=None,
-        description="Name of the unit to notify, e.g. 'DN1'. MUST extract from conversation history if not specified in the current message."
-    )
+    target_unit: str = Field(description="Name of the unit to notify, e.g. 'DN1'. MUST extract from conversation history if not specified in the current message. Use 'none' if unknown.")
     notification_extract: OpportunityExtract = Field(
         description="Relevant entity data extracted specifically for the notification. Merge with history."
     )
@@ -134,7 +131,7 @@ def analyze_context_and_extract(
     client = _llm_client()
     
     # NEW PATTERN: Instead of generic JSON extraction, we force tool calling.
-    llm_with_tools = client.bind_tools(_TOOLS)
+    llm_with_tools = client.bind_tools(_TOOLS, tool_choice="any")
     chain = classify_intent_prompt | llm_with_tools
 
     try:

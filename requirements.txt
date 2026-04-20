@@ -17,7 +17,8 @@ httpx>=0.28.0
 # AI (Phase 0: LangGraph smoke graph; optional LLM smoke via scripts/llm_smoke.py)
 langchain-core>=1.2.0
 langgraph>=1.1.0
-langchain-openai>=1.1.0
+langchain-openrouter
+openrouter
 
 # Vector DB client (Chroma server via Docker)
 chromadb>=1.5.0

@@ -8,23 +8,19 @@ from __future__ import annotations
 
 import logging
 
-from openai import OpenAI
+from openrouter import OpenRouter
 
+from app.ai.constants import LLM_TITLE_GENERATION_MAX_TOKENS
 from app.core.config import settings
+from app.core.llm_tracking import instrument_openrouter_client
 
 logger = logging.getLogger(__name__)
 
 _MAX_TITLE_LEN = 60
 
 
-from app.core.llm_tracking import instrument_openai_client
-
-
-def _llm_client() -> OpenAI:
-    kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
-    if settings.llm_base_url:
-        kwargs["base_url"] = settings.llm_base_url
-    return instrument_openai_client(OpenAI(**kwargs))
+def _llm_client() -> OpenRouter:
+    return instrument_openrouter_client(OpenRouter(api_key=settings.llm_api_key or "no-key"))
 
 
 def generate_title(first_message: str) -> str:
@@ -55,14 +51,14 @@ def generate_title(first_message: str) -> str:
 
     client = _llm_client()
     try:
-        resp = client.chat.completions.create(
+        resp = client.chat.send(
             model=settings.llm_model_secondary,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": first_message[:1000]},
             ],
-            max_tokens=40,
             temperature=0.3,
+            max_tokens=LLM_TITLE_GENERATION_MAX_TOKENS,
         )
         raw = (resp.choices[0].message.content or "").strip().strip('"\'')
         title = raw[:_MAX_TITLE_LEN] if raw else _fallback_title(first_message)

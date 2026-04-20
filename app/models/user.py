@@ -20,6 +20,8 @@ class User(Base):
 
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
 
+    preferred_language: Mapped[str] = mapped_column(String(10), nullable=False, server_default="vi", default="vi")
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 

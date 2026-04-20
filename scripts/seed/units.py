@@ -18,23 +18,20 @@ Usage:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-import chromadb
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.unit import Unit, UnitCaseStudy, UnitExpert
 from app.services.unit_vector_indexer import reindex_unit
 
 SEED_UNITS: list[dict[str, Any]] = [
     {
-        "code": "DN1",
-        "name": "DN1 Enterprise Apps",
+        "code": "D1",
+        "name": "D1",
         "contact_name": "QuangPM",
         "contact_email": "quangpm@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -73,8 +70,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "DN2",
-        "name": "DN2 Cloud Platforms",
+        "code": "D2",
+        "name": "D2",
         "contact_name": "MinhTQ",
         "contact_email": "minhtq@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -107,8 +104,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "DN3",
-        "name": "DN3 Data & Integration",
+        "code": "D5",
+        "name": "D5",
         "contact_name": "LinhNH",
         "contact_email": "linhnh@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -147,8 +144,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "HU",
-        "name": "HU Embedded & IoT",
+        "code": "D6",
+        "name": "D6",
         "contact_name": "HungPB",
         "contact_email": "hungpb@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -179,8 +176,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "HN1",
-        "name": "HN1 Web Products",
+        "code": "D8",
+        "name": "D8",
         "contact_name": "KienNM",
         "contact_email": "kiennm@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -219,8 +216,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "HN2",
-        "name": "HN2 Mobile & Commerce",
+        "code": "G0",
+        "name": "G0",
         "contact_name": "AnhLQ",
         "contact_email": "anhlq@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -252,8 +249,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "HN3",
-        "name": "HN3 QA & Delivery Excellence",
+        "code": "G8",
+        "name": "G8",
         "contact_name": "ThangNV",
         "contact_email": "thangnv@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -293,8 +290,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "HCM",
-        "name": "HCM Digital Solutions",
+        "code": "G10",
+        "name": "G10",
         "contact_name": "ThanhPT",
         "contact_email": "thanhpt@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -326,8 +323,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "JP",
-        "name": "JP Delivery & Localization",
+        "code": "DN1",
+        "name": "DN1",
         "contact_name": "SatoKen",
         "contact_email": "satoken@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -366,8 +363,8 @@ SEED_UNITS: list[dict[str, Any]] = [
         ],
     },
     {
-        "code": "AI",
-        "name": "AI Platform & Applied GenAI",
+        "code": "DN3",
+        "name": "DN3",
         "contact_name": "HieuNN",
         "contact_email": "hieunn@rikkeisoft.com",
         "contact_title": "Division Lead",
@@ -411,6 +408,66 @@ SEED_UNITS: list[dict[str, Any]] = [
                 "tech_stack": ["LangChain", "OpenRouter", "RAG"],
                 "description": "Q&A bot over engineering playbooks and architecture documents.",
                 "url": "https://example.internal/case/ai-knowledge-bot",
+            },
+        ],
+    },
+    {
+        "code": "HU1",
+        "name": "HU1",
+        "contact_name": "CuongNV",
+        "contact_email": "cuongnv@rikkeisoft.com",
+        "contact_title": "Division Lead",
+        "tech_stack": ["SAP", "Salesforce", "MuleSoft", "Java", "DataWeave"],
+        "notes": "Focused on Enterprise ERP/CRM integration and process optimization.",
+        "experts": [
+            {"name": "AnhT", "focus_areas": ["SAP ABAP", "Fiori"]},
+            {"name": "BinhK", "focus_areas": ["Salesforce Apex", "LWC"]},
+            {"name": "LongV", "focus_areas": ["MuleSoft", "System Integration"]},
+        ],
+        "case_studies": [
+            {
+                "title": "Global ERP Consolidation",
+                "domain": "Manufacturing",
+                "tech_stack": ["SAP S/4HANA", "Java"],
+                "description": "Unified legacy ERPs into a single SAP instance for 10+ countries.",
+                "url": "https://example.internal/case/hu1-erp",
+            },
+            {
+                "title": "Omnichannel CRM Sync",
+                "domain": "Retail",
+                "tech_stack": ["Salesforce", "MuleSoft"],
+                "description": "Enabled real-time data sync across POS and Salesforce Service Cloud.",
+                "url": "https://example.internal/case/hu1-crm-sync",
+            },
+        ],
+    },
+    {
+        "code": "HM1",
+        "name": "HM1",
+        "contact_name": "HaLN",
+        "contact_email": "haln@rikkeisoft.com",
+        "contact_title": "Division Lead",
+        "tech_stack": ["Vue.js", "PHP", "Laravel", "MySQL", "TailwindCSS"],
+        "notes": "Specialists in CMS, portals, and media content platforms.",
+        "experts": [
+            {"name": "PhuongM", "focus_areas": ["Vue.js", "Nuxt"]},
+            {"name": "DatT", "focus_areas": ["PHP", "Laravel Architecture"]},
+            {"name": "MinhT", "focus_areas": ["SEO", "Web Performance"]},
+        ],
+        "case_studies": [
+            {
+                "title": "News Media Portal",
+                "domain": "Media",
+                "tech_stack": ["Vue.js", "Laravel", "Redis"],
+                "description": "Built a scalable CMS handling 5M+ daily page views.",
+                "url": "https://example.internal/case/hm1-news",
+            },
+            {
+                "title": "Corporate Intranet",
+                "domain": "Enterprise",
+                "tech_stack": ["PHP", "MySQL", "TailwindCSS"],
+                "description": "Bespoke employee portal with directory and document workflow.",
+                "url": "https://example.internal/case/hm1-intranet",
             },
         ],
     },
@@ -500,15 +557,9 @@ async def seed_units() -> None:
         await session.commit()
 
         print("Re-indexing units into vector store ...")
-        mode = settings.chroma_mode.strip().lower()
-        if mode == "persistent":
-            persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
-            persist_dir.mkdir(parents=True, exist_ok=True)
-            client = chromadb.PersistentClient(path=str(persist_dir))
-        else:
-            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        from app.ai.tools.vector_search import get_chroma_client
         try:
-            client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+            client = get_chroma_client()
             client.delete_collection(name="unit_capabilities")
             print("Đã xóa collection cũ thành công.")
         except Exception as e:

@@ -5,6 +5,7 @@
         "description": "All recognized user intents, mapped to downstream flows.",
         "enum": [
           "find_units",
+          "send_notification",
           "save_draft",
           "request_deal_form",
           "update_capabilities",
@@ -133,6 +134,14 @@
               }
             ],
             "description": "Best-effort structured extraction from user message."
+          },
+          "matched_experts": {
+            "description": "Experts recommended for this opportunity across all matched units.",
+            "items": {
+              "$ref": "#/components/schemas/MatchedExpert"
+            },
+            "title": "Matched Experts",
+            "type": "array"
           },
           "matched_units": {
             "items": {
@@ -502,7 +511,8 @@
           "vi",
           "en",
           "ja",
-          "other"
+          "other",
+          "unknown"
         ],
         "title": "DetectedLanguage",
         "type": "string"
@@ -559,6 +569,54 @@
           "message"
         ],
         "title": "DevSmokeResult",
+        "type": "object"
+      },
+      "DevToolCallingResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "raw_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Content"
+          },
+          "tool_calls": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "model"
+        ],
+        "title": "DevToolCallingResult",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1414,6 +1472,87 @@
         "title": "MatchRationale",
         "type": "object"
       },
+      "MatchedExpert": {
+        "additionalProperties": false,
+        "description": "An expert recommended for an opportunity, with evidence of suitability.",
+        "properties": {
+          "evidence": {
+            "description": "Concrete evidence points supporting the recommendation.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "fit_reason": {
+            "description": "Why this expert is a good fit for the opportunity.",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Fit Reason",
+            "type": "string"
+          },
+          "focus_areas": {
+            "description": "Expert's specialization areas.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Focus Areas",
+            "type": "array"
+          },
+          "name": {
+            "description": "Expert name (from system data).",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "profile_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Url"
+          },
+          "relevance_score": {
+            "description": "How relevant this expert is (0-1).",
+            "examples": [
+              0.85
+            ],
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance Score",
+            "type": "number"
+          },
+          "unit_id": {
+            "description": "ID of the unit this expert belongs to.",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "unit_name": {
+            "description": "Name of the unit for display.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Unit Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "unit_id",
+          "unit_name",
+          "fit_reason",
+          "relevance_score"
+        ],
+        "title": "MatchedExpert",
+        "type": "object"
+      },
       "MatchedUnit": {
         "additionalProperties": false,
         "properties": {
@@ -1816,6 +1955,30 @@
             ],
             "title": "Client"
           },
+          "customer_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Khách hàng đang ở giai đoạn nào, ví dụ: 'Đang tìm hiểu', 'Đã có requirement rõ'",
+            "title": "Customer Stage"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Timeline hoặc deadline của dự án/proposal, ví dụ: '1 tuần', '15/10', v.v.",
+            "title": "Deadline"
+          },
           "market": {
             "anyOf": [
               {
@@ -1844,6 +2007,30 @@
             },
             "title": "Requirements",
             "type": "array"
+          },
+          "requires_estimate_or_demo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Có cần estimate sơ bộ hoặc demo không",
+            "title": "Requires Estimate Or Demo"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phạm vi công việc hoặc yêu cầu vụ thể, ví dụ: 'CRM', 'BC', 'Mobile app'",
+            "title": "Scope"
           },
           "tech_stack": {
             "items": {
@@ -2588,6 +2775,14 @@
             "title": "Name",
             "type": "string"
           },
+          "recommended_experts": {
+            "description": "Experts from this unit recommended for the opportunity.",
+            "items": {
+              "$ref": "#/components/schemas/MatchedExpert"
+            },
+            "title": "Recommended Experts",
+            "type": "array"
+          },
           "suggestion_rank": {
             "anyOf": [
               {
@@ -3121,6 +3316,12 @@
             "minLength": 8,
             "title": "Password",
             "type": "string"
+          },
+          "preferred_language": {
+            "default": "vi",
+            "maxLength": 10,
+            "title": "Preferred Language",
+            "type": "string"
           }
         },
         "required": [
@@ -3184,11 +3385,16 @@
           "is_superuser": {
             "title": "Is Superuser",
             "type": "boolean"
+          },
+          "preferred_language": {
+            "title": "Preferred Language",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "email",
+          "preferred_language",
           "is_active",
           "is_superuser",
           "created_at"
@@ -3232,6 +3438,18 @@
               }
             ],
             "title": "Is Superuser"
+          },
+          "preferred_language": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Language"
           }
         },
         "title": "UserUpdate",
@@ -3287,7 +3505,7 @@
   },
   "info": {
     "title": "Bear In Mind API",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -3746,6 +3964,56 @@
         ]
       }
     },
+    "/api/v1/dev/smoke/embeddings": {
+      "get": {
+        "description": "Calls the configured OpenRouter API to generate embeddings. Use to verify LLM_API_KEY. Disabled in production.",
+        "operationId": "dev_smoke_embeddings_api_v1_dev_smoke_embeddings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevSmokeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[DEV] Smoke test Embedding API",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
     "/api/v1/dev/smoke/hubspot": {
       "get": {
         "description": "Calls HubSpot ``GET /settings/v3/users`` and returns user count. Use to verify HUBSPOT_API_KEY. Disabled in production.",
@@ -3785,6 +4053,56 @@
           }
         },
         "summary": "[DEV] Smoke test LLM API key",
+        "tags": [
+          "dev"
+        ]
+      }
+    },
+    "/api/v1/dev/smoke/tool-calling": {
+      "get": {
+        "description": "Calls the configured OpenRouter API with a bound tool to verify if function-calling works. Use `?model=...` to test a specific model. Disabled in production.",
+        "operationId": "dev_smoke_tool_calling_api_v1_dev_smoke_tool_calling_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevToolCallingResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "[DEV] Smoke test LLM Tool Calling",
         "tags": [
           "dev"
         ]

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.tools.vector_search import get_chroma_client
 from app.core.config import settings
 from app.db.session import get_session
 
@@ -45,9 +46,8 @@ async def ready(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
 
     # Chroma
     try:
-        import chromadb
-
-        chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port).heartbeat()
+        client = get_chroma_client()
+        client.heartbeat()
         checks["chroma"] = "connected"
     except Exception as exc:  # noqa: BLE001
         checks["chroma"] = f"error: {exc!s}"

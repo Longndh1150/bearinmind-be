@@ -1,7 +1,11 @@
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
 from typing import Any
+
+# OpenRouter SDK typing
+from openrouter import OpenRouter
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +23,8 @@ class LLMTrackingContext:
         usage_data = {}
         if hasattr(response, "usage") and response.usage is not None:
             usage_data = {
-                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0),
-                "completion_tokens": getattr(response.usage, "completion_tokens", 0),
+                "prompt_tokens": getattr(response.usage, "prompt_tokens", 0) or getattr(response.usage, "input_tokens", 0),
+                "completion_tokens": getattr(response.usage, "completion_tokens", 0) or getattr(response.usage, "output_tokens", 0),
                 "total_tokens": getattr(response.usage, "total_tokens", 0),
                 # OpenRouter extension includes a cost in 'cost' attribute sometimes
                 "cost": getattr(response.usage, "cost", 0.0),
@@ -28,10 +32,26 @@ class LLMTrackingContext:
         elif isinstance(response, dict) and "usage" in response:
             usage_info = response["usage"]
             usage_data = {
-                "prompt_tokens": usage_info.get("prompt_tokens", 0),
-                "completion_tokens": usage_info.get("completion_tokens", 0),
+                "prompt_tokens": usage_info.get("prompt_tokens", 0) or usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("completion_tokens", 0) or usage_info.get("output_tokens", 0),
                 "total_tokens": usage_info.get("total_tokens", 0),
                 "cost": usage_info.get("cost", 0.0),
+            }
+        elif isinstance(response, dict) and "usage_metadata" in response:
+            usage_info = response["usage_metadata"]
+            usage_data = {
+                "prompt_tokens": usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("output_tokens", 0),
+                "total_tokens": usage_info.get("total_tokens", 0),
+                "cost": 0.0,
+            }
+        elif hasattr(response, "usage_metadata") and isinstance(response.usage_metadata, dict):
+            usage_info = response.usage_metadata
+            usage_data = {
+                "prompt_tokens": usage_info.get("input_tokens", 0),
+                "completion_tokens": usage_info.get("output_tokens", 0),
+                "total_tokens": usage_info.get("total_tokens", 0),
+                "cost": 0.0,
             }
         return usage_data
 
@@ -76,9 +96,9 @@ class LLMLangchainCallbackStub:
         model = response.llm_output.get("model_name", "unknown") if hasattr(response, "llm_output") and response.llm_output else "unknown"
         LLMTrackingContext.log_call("langchain.llm.call", elapsed_s, usage, model)
 
-def intercept_openai_chat_create(original_create):
+def intercept_openrouter_chat_send(original_create: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Wraps the OpenAI chat.completions.create method to intercept responses,
+    Wraps the OpenRouter chat.send method to intercept responses,
     track execution time and retrieve usage metrics automatically.
     """
     @wraps(original_create)
@@ -99,54 +119,54 @@ def intercept_openai_chat_create(original_create):
                 # Process end of stream
                 elapsed_s = time.time() - start_time
                 usage = LLMTrackingContext._extract_usage(last_chunk) if last_chunk else {}
-                LLMTrackingContext.log_call("chat.completions.create(stream)", elapsed_s, usage, model)
+                LLMTrackingContext.log_call("chat.send(stream)", elapsed_s, usage, model)
                 
             return stream_generator()
         else:
             elapsed_s = time.time() - start_time
             usage = LLMTrackingContext._extract_usage(response)
-            LLMTrackingContext.log_call("chat.completions.create", elapsed_s, usage, model)
+            LLMTrackingContext.log_call("chat.send", elapsed_s, usage, model)
             return response
 
     return wrapper
 
 
-def intercept_openai_embeddings_create(original_create):
+def intercept_openrouter_embeddings_generate(original_generate: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Wraps the OpenAI embeddings.create method for tracking purposes.
+    Wraps the OpenRouter embeddings.generate method for tracking purposes.
     """
-    @wraps(original_create)
+    @wraps(original_generate)
     def wrapper(*args, **kwargs):
         start_time = time.time()
         model = kwargs.get("model", "unknown")
         
-        response = original_create(*args, **kwargs)
+        response = original_generate(*args, **kwargs)
         
         elapsed_s = time.time() - start_time
         usage = LLMTrackingContext._extract_usage(response)
-        LLMTrackingContext.log_call("embeddings.create", elapsed_s, usage, model)
+        LLMTrackingContext.log_call("embeddings.generate", elapsed_s, usage, model)
         return response
 
     return wrapper
 
 
-def instrument_openai_client(client) -> None:
+def instrument_openrouter_client(client: OpenRouter) -> OpenRouter:
     """
-    Monkey-patches an instantiated OpenAI client instance to add automated
+    Monkey-patches an instantiated OpenRouter client instance to add automated
     usage and timing logs overhead-free.
     """
     # Instrument Chat completions
-    if hasattr(client, "chat") and hasattr(client.chat, "completions"):
-        if not getattr(client.chat.completions.create, "_is_instrumented", False):
-            patched_chat = intercept_openai_chat_create(client.chat.completions.create)
+    if hasattr(client, "chat") and hasattr(client.chat, "send"):
+        if not getattr(client.chat.send, "_is_instrumented", False):
+            patched_chat = intercept_openrouter_chat_send(client.chat.send)
             patched_chat._is_instrumented = True
-            client.chat.completions.create = patched_chat
+            client.chat.send = patched_chat
             
     # Instrument Embeddings
-    if hasattr(client, "embeddings"):
-        if not getattr(client.embeddings.create, "_is_instrumented", False):
-            patched_emb = intercept_openai_embeddings_create(client.embeddings.create)
+    if hasattr(client, "embeddings") and hasattr(client.embeddings, "generate"):
+        if not getattr(client.embeddings.generate, "_is_instrumented", False):
+            patched_emb = intercept_openrouter_embeddings_generate(client.embeddings.generate)
             patched_emb._is_instrumented = True
-            client.embeddings.create = patched_emb
+            client.embeddings.generate = patched_emb
     
     return client

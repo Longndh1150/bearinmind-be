@@ -15,16 +15,23 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from typing import Literal
 
-from openai import OpenAI
+from langchain_openrouter import ChatOpenRouter
+from pydantic import BaseModel, Field
 
-from app.ai.prompts.matching import (
-    EXTRACT_ENTITIES_SYSTEM,
-    SCORE_AND_RANK_SYSTEM,
-    language_instruction,
+from app.ai.constants import (
+    LLM_MATCHING_SCORE_RANK_MAX_TOKENS,
 )
-from app.ai.tools.vector_search import VectorSearchResult, search_units
+from app.ai.prompts.matching import (
+    extract_entities_prompt,
+    language_instruction,
+    score_and_rank_prompt,
+)
+from app.ai.tools.vector_search import VectorSearchResult
 from app.core.config import settings
+from app.core.llm_tracking import LLMTrackingContext
 from app.schemas.chat import MatchedExpert, MatchedUnit, MatchRationale, TeamSuggestion
 from app.schemas.context import DetectedLanguage
 from app.schemas.llm import OpportunityExtract
@@ -35,33 +42,17 @@ logger = logging.getLogger(__name__)
 _DEFAULT_LANGUAGE = DetectedLanguage.vi
 
 
-from app.core.llm_tracking import instrument_openai_client
-
-
-def _llm_client() -> OpenAI:
-    """Build an OpenAI-compatible client from BE settings.
-
-    Works with OpenAI, OpenRouter, Groq (set LLM_BASE_URL + LLM_API_KEY).
+def _llm_client(max_tokens: int | None = None) -> ChatOpenRouter:
+    """Build an OpenRouter-compatible client from BE settings.
     """
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    return instrument_openai_client(OpenAI(**kwargs))
-
-
-def _chat_json(client: OpenAI, system: str, user: str = "") -> dict:
-    """Call LLM in JSON mode and return parsed dict."""
-    messages = [{"role": "system", "content": system}]
-    if user:
-        messages.append({"role": "user", "content": user})
-
-    resp = client.chat.completions.create(
-        model=settings.llm_model_primary,
-        messages=messages,
-        response_format={"type": "json_object"},
-    )
-    raw = resp.choices[0].message.content or "{}"
-    return json.loads(raw)
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
+    # instrumenting pure LangChain object with llm_tracking isn't easily monkeypatched like openrouter sdk
+    # we leave it out here for now
+    return ChatOpenRouter(**kwargs, model=settings.llm_model_primary, max_retries=1)
 
 
 # ── Step 1: entity extraction ──────────────────────────────────────────────────
@@ -76,20 +67,35 @@ def extract_entities(
     language is injected into the prompt so the LLM writes free-text fields
     (title, notes, …) in the correct language.
     """
-    client = _llm_client()
-    system = EXTRACT_ENTITIES_SYSTEM.format(
-        language_instruction=language_instruction(language),
-    )
+    client = _llm_client(max_tokens=LLM_MATCHING_SCORE_RANK_MAX_TOKENS)
+    chain = extract_entities_prompt | client.with_structured_output(OpportunityExtract, include_raw=True)
+
     try:
-        data = _chat_json(client, system, message)
+        t0 = time.time()
+        response = chain.invoke({
+            "language_instruction": language_instruction(language),
+            "message": message,
+        })
+        t1 = time.time()
+        
+        data: OpportunityExtract = response["parsed"]
+        raw_msg = response["raw"]
+        
+        if hasattr(raw_msg, "usage_metadata"):
+            LLMTrackingContext.log_call(
+                operation_name="extract_entities",
+                elapsed_s=t1 - t0,
+                usage=LLMTrackingContext._extract_usage(raw_msg),
+                model=getattr(raw_msg, "response_metadata", {}).get("model_name", settings.llm_model_primary),
+            )
         
         # Fallback for null fields causing Pydantic ValidationError
-        if data.get("tech_stack") is None:
-            data["tech_stack"] = []
-        if data.get("requirements") is None:
-            data["requirements"] = []
+        if data.tech_stack is None:
+            data.tech_stack = []
+        if data.requirements is None:
+            data.requirements = []
             
-        return OpportunityExtract(**data)
+        return data
     except Exception:
         logger.exception("Entity extraction failed; returning empty extract")
         return OpportunityExtract()
@@ -151,30 +157,75 @@ def _build_experts_lookup(results: list[VectorSearchResult]) -> dict[str, dict]:
     return lookup
 
 
+class LLMRecommendedExpert(BaseModel):
+    name: str = ""
+    fit_reason: str = ""
+    relevance_score: float = 0.5
+
+class LLMRationale(BaseModel):
+    summary: str = ""
+    confidence: float = 0.5
+
+class LLMRankItem(BaseModel):
+    unit_id: str = ""
+    fit_level: Literal["high", "medium", "low"] = "low"
+    rationale: LLMRationale = Field(default_factory=LLMRationale)
+    recommended_experts: list[LLMRecommendedExpert] = Field(default_factory=list)
+
+class LLMScoreRankResult(BaseModel):
+    results: list[LLMRankItem] = Field(default_factory=list)
+    final_answer: str = Field(
+        min_length=10,
+        description="A friendly, natural-language conversational reply answering the user directly in the exact requested language, stating the summary of found units and recommended experts."
+    )
+
 def score_and_rank(
     opportunity: OpportunityExtract,
     vector_results: list[VectorSearchResult],
     language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> tuple[list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion]]:
-    """Return (matched_units, matched_experts, suggestions) for the chat response."""
+) -> tuple[list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion], str]:
+    """Return (matched_units, matched_experts, suggestions, final_answer) for the chat response."""
     if not vector_results:
-        return [], [], []
+        return [], [], [], "No units or experts found."
 
-    client = _llm_client()
+    client = _llm_client(max_tokens=LLM_MATCHING_SCORE_RANK_MAX_TOKENS)
     units_context = _build_units_context(vector_results)
-    system = SCORE_AND_RANK_SYSTEM.format(
-        opportunity_json=opportunity.model_dump_json(),
-        units_context=units_context,
-        language_instruction=language_instruction(language),
-    )
+
+    chain = score_and_rank_prompt | client.with_structured_output(LLMScoreRankResult, include_raw=True)
 
     try:
-        data = _chat_json(client, system)
+        t0 = time.time()
+        response = chain.invoke({
+            "opportunity_json": opportunity.model_dump_json(),
+            "units_context": units_context,
+            "language_instruction": language_instruction(language),
+        })
+        t1 = time.time()
     except Exception:
         logger.exception("Score/rank LLM call failed; returning empty results")
-        return [], [], []
+        return [], [], [], "There was an error."
 
-    llm_results: list[dict] = data.get("results", [])
+    data: LLMScoreRankResult = response["parsed"]
+    raw_msg = response["raw"]
+    
+    if hasattr(raw_msg, "usage_metadata"):
+        LLMTrackingContext.log_call(
+            operation_name="score_and_rank",
+            elapsed_s=t1 - t0,
+            usage=LLMTrackingContext._extract_usage(raw_msg),
+            model=getattr(raw_msg, "response_metadata", {}).get("model_name", settings.llm_model_primary),
+        )
+
+    llm_results: list[LLMRankItem] = data.results
+    final_answer = data.final_answer.strip()
+    
+    if not final_answer:
+        lang_map = {
+            DetectedLanguage.vi: "Dựa trên yêu cầu của bạn, đây là một số gợi ý phù hợp:",
+            DetectedLanguage.en: "Based on your request, here are some suitable recommendations:",
+            DetectedLanguage.ja: "ご要望に基づき、いくつかの適切な提案を以下に示します："
+        }
+        final_answer = lang_map.get(language, lang_map[DetectedLanguage.vi])
 
     # Authoritative lookup: unit_id → VectorSearchResult (IDs come from the system, not LLM)
     meta_by_id = {r.unit_id: r for r in vector_results}
@@ -189,7 +240,7 @@ def score_and_rank(
     for rank_idx, item in enumerate(llm_results):
         # Validate that the unit_id LLM echoed back is one we actually sent it.
         # If it's not, discard the item — LLM may not invent IDs.
-        unit_id = item.get("unit_id", "")
+        unit_id = item.unit_id
         meta = meta_by_id.get(unit_id)
         if meta is None:
             logger.warning("LLM returned unknown unit_id %r — skipping", unit_id)
@@ -201,14 +252,12 @@ def score_and_rank(
         contact_name = meta.metadata.get("contact_name") or "Contact"
         contact_email: str | None = meta.metadata.get("contact_email") or None
 
-        fit_level_raw: str = item.get("fit_level", "low")
-        fit_level = fit_level_raw if fit_level_raw in ("high", "medium", "low") else "low"
+        fit_level = item.fit_level
 
-        rationale_raw: dict = item.get("rationale", {})
         rationale = MatchRationale(
-            summary=rationale_raw.get("summary", ""),
-            confidence=float(rationale_raw.get("confidence", 0.5)),
-            evidence=rationale_raw.get("evidence", []),
+            summary=item.rationale.summary,
+            confidence=item.rationale.confidence,
+            evidence=[],
         )
 
         matched_units.append(
@@ -226,8 +275,8 @@ def score_and_rank(
         unit_experts_lookup = experts_lookup.get(unit_id, {})
         unit_matched_experts: list[MatchedExpert] = []
 
-        for exp_item in item.get("recommended_experts", []):
-            exp_name_raw = exp_item.get("name", "")
+        for exp_item in item.recommended_experts:
+            exp_name_raw = exp_item.name
             # Validate expert name against system data
             exp_sys = unit_experts_lookup.get(exp_name_raw.lower())
             if exp_sys is None:
@@ -239,9 +288,9 @@ def score_and_rank(
                 unit_id=unit_id,
                 unit_name=unit_name,
                 focus_areas=exp_sys["focus_areas"],  # authoritative from system
-                fit_reason=exp_item.get("fit_reason", ""),
-                evidence=exp_item.get("evidence", []),
-                relevance_score=float(exp_item.get("relevance_score", 0.5)),
+                fit_reason=exp_item.fit_reason,
+                evidence=[],
+                relevance_score=float(exp_item.relevance_score),
                 profile_url=exp_sys.get("profile_url"),
             )
             unit_matched_experts.append(matched_expert)
@@ -276,123 +325,6 @@ def score_and_rank(
             )
         )
 
-    return matched_units, all_matched_experts, suggestions
+    return matched_units, all_matched_experts, suggestions, final_answer
 
-
-# ── Step 4: natural-language answer ───────────────────────────────────────────
-
-
-def _build_answer(
-    user_message: str,
-    extracted: OpportunityExtract,
-    matched_units: list[MatchedUnit],
-    matched_experts: list[MatchedExpert],
-    language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> str:
-    """Ask the LLM to write a natural-language reply in the detected language."""
-    count = len(matched_units)
-    unit_names = ", ".join(u.unit_name for u in matched_units) if matched_units else "none"
-
-    # Build expert summary for the answer
-    expert_count = len(matched_experts)
-    if matched_experts:
-        top_experts = matched_experts[:5]  # Show top 5 experts max
-        expert_lines = []
-        for exp in top_experts:
-            areas = ", ".join(exp.focus_areas[:3]) if exp.focus_areas else ""
-            expert_lines.append(f"{exp.name} ({exp.unit_name}) - {areas}")
-        expert_summary = "; ".join(expert_lines)
-    else:
-        expert_summary = "none"
-
-    lang_names = {
-        DetectedLanguage.vi: "Vietnamese",
-        DetectedLanguage.en: "English",
-        DetectedLanguage.ja: "Japanese",
-        DetectedLanguage.other: "the same language as the user message",
-    }
-    lang_name = lang_names.get(language, "Vietnamese")
-
-    system = (
-        f"You are a helpful assistant summarising unit-matching and expert-matching results for a sales team. "
-        f"Write a SHORT (2-4 sentence) friendly response in {lang_name}. "
-        "Mention how many units were found and their names. "
-        "Also mention the top recommended experts and briefly why they fit. "
-        "Do not include JSON or markdown."
-    )
-    user_prompt = (
-        f"User message: {user_message}\n"
-        f"Matched {count} unit(s): {unit_names}.\n"
-        f"Recommended {expert_count} expert(s): {expert_summary}.\n"
-        f"Opportunity title: {extracted.title or 'not detected'}.\n"
-        "Write the assistant reply:"
-    )
-    client = _llm_client()
-    try:
-        resp = client.chat.completions.create(
-            model=settings.llm_model_primary,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return (resp.choices[0].message.content or "").strip()
-    except Exception:
-        logger.warning("Answer generation failed; using fallback text")
-        if count:
-            return f"Found {count} matching unit(s): {unit_names}. {expert_count} expert(s) recommended."
-        return "No matching units found. Please provide more details about the technology and market."
-
-
-# ── Main entry point ───────────────────────────────────────────────────────────
-
-
-from datetime import UTC, datetime
-
-import numpy as np
-
-def run_matching(
-    message: str,
-    language: DetectedLanguage = _DEFAULT_LANGUAGE,
-) -> tuple[OpportunityExtract, list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion], str]:
-    """Full US1 pipeline: extract → vector search → rank → answer.
-
-    Args:
-        message: The user's opportunity description.
-        language: Detected language from context_analyzer (already known at this point).
-
-    Returns:
-        (extracted_opportunity, matched_units, matched_experts, suggestions, answer_text)
-    """
-    logger.info("run_matching: Extracting entities...")
-    t0 = datetime.now(UTC)
-    extracted = extract_entities(message, language=language)
-    t1 = datetime.now(UTC)
-    logger.info(f"run_matching: extract_entities took {(t1 - t0).total_seconds():.3f}s")
-    
-    query = " ".join(extracted.tech_stack + extracted.requirements)
-    if not query.strip():
-        query = message[:500]
-
-    logger.info("run_matching: Searching units (Vector Search)...")
-    t2 = datetime.now(UTC)
-    vector_results = search_units(query, top_k=3)
-    t3 = datetime.now(UTC)
-    logger.info(f"run_matching: search_units took {(t3 - t2).total_seconds():.3f}s")
-    
-    logger.info("run_matching: Scoring and ranking...")
-    t4 = datetime.now(UTC)
-    matched_units, matched_experts, suggestions = score_and_rank(
-        extracted, vector_results, language=language,
-    )
-    t5 = datetime.now(UTC)
-    logger.info(f"run_matching: score_and_rank took {(t5 - t4).total_seconds():.3f}s")
-    
-    logger.info("run_matching: Building final answer...")
-    t6 = datetime.now(UTC)
-    answer = _build_answer(message, extracted, matched_units, matched_experts, language=language)
-    t7 = datetime.now(UTC)
-    logger.info(f"run_matching: _build_answer took {(t7 - t6).total_seconds():.3f}s")
-    
-    return extracted, matched_units, matched_experts, suggestions, answer
 

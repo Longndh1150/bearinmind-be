@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from openai import OpenAI
 
 try:
     import chromadb
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 _memory_store: dict[str, dict[str, Any]] = {}
 
 
-def _get_collection():
+def get_chroma_client():
     if chromadb is None:
         raise RuntimeError("chromadb package is not available")
 
@@ -37,17 +36,22 @@ def _get_collection():
     if mode == "persistent":
         persist_dir = Path(settings.chroma_persist_dir).expanduser().resolve()
         persist_dir.mkdir(parents=True, exist_ok=True)
-        client = chromadb.PersistentClient(path=str(persist_dir))
+        return chromadb.PersistentClient(path=str(persist_dir))
     else:
-        client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        return chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+
+
+def _get_collection():
+    client = get_chroma_client()
 
     class OpenRouterEmbeddingFunction:
 
         def __init__(self) -> None:
-            from app.core.llm_tracking import instrument_openai_client
-            self._client = instrument_openai_client(OpenAI(
+            from openrouter import OpenRouter
+
+            from app.core.llm_tracking import instrument_openrouter_client
+            self._client = instrument_openrouter_client(OpenRouter(
                 api_key=settings.llm_api_key or "no-key",
-                base_url=settings.llm_base_url or None,
             ))
             self._model = settings.llm_embedding_model
 
@@ -64,9 +68,9 @@ def _get_collection():
             
             embeddings = []
             for text in input:
-                resp = self._client.embeddings.create(
+                resp = self._client.embeddings.generate(
                     model=self._model,
-                    input=text,  # OpenRouter requires single string per request
+                    input=text,  # OpenRouter SDK expects single string per request as per docs
                 )
                 embeddings.append(np.array(resp.data[0].embedding))
             return embeddings
@@ -175,8 +179,8 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
     Returns a flat list of VectorSearchResult instead of raw Chroma dicts
     so callers don't have to unpack nested lists.
     """
-    from datetime import UTC, datetime
     import logging
+    from datetime import UTC, datetime
     logger = logging.getLogger(__name__)
 
     try:

@@ -175,7 +175,7 @@ class LLMRankItem(BaseModel):
 class LLMScoreRankResult(BaseModel):
     results: list[LLMRankItem] = Field(default_factory=list)
     final_answer: str = Field(
-        default="", 
+        min_length=10,
         description="A friendly, natural-language conversational reply answering the user directly in the exact requested language, stating the summary of found units and recommended experts."
     )
 

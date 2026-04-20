@@ -217,6 +217,24 @@ class ChatService:
                 matched_unit = u
                 break
                 
+        if not matched_unit and target_name:
+            from sqlalchemy import select
+            from app.models.unit import Unit
+            # Attempt to query from database directly
+            unit_rs = await session.execute(
+                select(Unit).where(
+                    Unit.code.ilike(f"%{target_name}%") | Unit.name.ilike(f"%{target_name}%")
+                )
+            )
+            db_unit = unit_rs.scalars().first()
+            if db_unit:
+                matched_unit = {
+                    "id": str(db_unit.id),
+                    "name": db_unit.name,
+                    "code": db_unit.code,
+                    "head_id": db_unit.contact_email
+                }
+
         if not matched_unit:
             ans = f"Dạ, em không tìm thấy đơn vị '{target_name}' trong danh sách vừa gợi ý. Anh/chị vui lòng xác nhận lại nhé!" if ctx.language == DetectedLanguage.vi else f"Sorry, I couldn't find unit '{target_name}' in the recent suggestions. Could you confirm the unit?"
             return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])

@@ -18,15 +18,12 @@ Usage:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
-import chromadb
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.unit import Unit, UnitCaseStudy, UnitExpert
 from app.services.unit_vector_indexer import reindex_unit

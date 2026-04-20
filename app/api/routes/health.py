@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.ai.tools.vector_search import get_chroma_client
+from app.core.config import settings
 from app.db.session import get_session
 
 router = APIRouter(tags=["health"])

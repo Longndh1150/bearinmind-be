@@ -25,6 +25,7 @@ from app.schemas.context import (
 )
 from app.schemas.llm import OpportunityExtract
 
+
 class FakeGraph:
     def __init__(self, ctx, ext=None, mat=None, sug=None, ans="Answer"):
         self.ctx = ctx
@@ -33,7 +34,8 @@ class FakeGraph:
         self.sug = sug if sug else []
         self.ans = ans
     def invoke(self, st):
-        if isinstance(self.ctx, Exception): raise self.ctx
+        if isinstance(self.ctx, Exception):
+            raise self.ctx
         st["context"] = self.ctx
         st["extracted_entities"]=self.ext
         st["matched_units"]=self.mat
@@ -356,7 +358,7 @@ def test_chat_context_analysis_failure_falls_back_to_stub(client_with_context):
 
 def test_chat_matching_exception_falls_back_to_stub(client_with_context):
     """run_matching exception → stub response, not 500."""
-    ctx = _make_context(ChatIntent.find_units)
+    _make_context(ChatIntent.find_units)
 
     with (
         patch("app.services.chat_service.build_graph", side_effect=RuntimeError("agent crashed")),

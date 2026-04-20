@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.title_generator import generate_title
-from app.ai.graph import build_graph, GraphState
+from app.ai.graph import GraphState, build_graph
 from app.core.config import settings
 from app.models.conversation import Conversation, ConversationMessage
 from app.models.user import User
@@ -27,6 +27,7 @@ from app.schemas.context import (
     DetectedLanguage,
     SessionMeta,
 )
+from app.schemas.llm import OpportunityExtract
 from app.services.update_capabilities_service import handle_update_capabilities
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,70 @@ class ChatService:
         )
 
     @staticmethod
+    async def _handle_send_notification(
+        session: AsyncSession,
+        ctx: ConversationContext,
+        extracted: OpportunityExtract | None,
+        conv_id: UUID,
+        session_meta: SessionMeta,
+        user: User,
+    ) -> ChatResponse:
+        from app.schemas.notification import (
+            NotificationCreateOpportunityMatchUnitRequest,
+            OpportunityMatchUnitNotificationDetails,
+        )
+        from app.services.notification_service import create_opportunity_match_unit_notification
+        
+        target_name = ctx.opportunity_hint or ""
+        matched_unit = None
+        target_lower = target_name.lower().strip()
+        for u in getattr(session_meta, "suggested_units", []):
+            un_name = str(u.get("name", "")).lower()
+            un_code = str(u.get("code", "")).lower()
+            if target_lower in un_name or target_lower == un_code:
+                matched_unit = u
+                break
+                
+        if not matched_unit:
+            ans = f"Dạ, em không tìm thấy đơn vị '{target_name}' trong danh sách vừa gợi ý. Anh/chị vui lòng xác nhận lại nhé!" if ctx.language == DetectedLanguage.vi else f"Sorry, I couldn't find unit '{target_name}' in the recent suggestions. Could you confirm the unit?"
+            return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
+            
+        unit_head_id = matched_unit.get("head_id")
+        if not unit_head_id:
+            ans = f"Đơn vị {matched_unit.get('name')} hiện chưa có quản lý (đầu mối) để nhận thông báo ạ." if ctx.language == DetectedLanguage.vi else f"Unit {matched_unit.get('name')} currently does not have a designated head to receive notifications."
+            return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
+            
+        details = OpportunityMatchUnitNotificationDetails(
+            opportunity_name=extracted.title or "N/A" if extracted else "N/A",
+            customer_group=extracted.market if extracted else None,
+            deadline=None, # parsing str to date may be complex, ignoring or pass to bear_message
+            required_tech=extracted.tech_stack if extracted else [],
+            special_requirements=extracted.requirements[0] if extracted and extracted.requirements else None,
+            next_steps="Estimate sơ bộ/Demo" if extracted and extracted.requires_estimate_or_demo else "Review",
+            bear_message=extracted.notes if extracted else None,
+            sales_contact_name=user.email.split("@")[0].capitalize() if user.email else "Sales",
+            sales_contact_email=user.email,
+        )
+        
+        req = NotificationCreateOpportunityMatchUnitRequest(
+            recipient_user_id=UUID(unit_head_id),
+            title=f"Opportunity match cho '{matched_unit.get('name')}' từ '{user.email}'",
+            message=f"Có cơ hội mới, deadline/timeline dự kiến: {extracted.deadline if extracted and extracted.deadline else 'Chưa rõ'}, Scope: {extracted.scope if extracted and extracted.scope else 'Chưa rõ'}. Giai đoạn: {extracted.customer_stage if extracted and extracted.customer_stage else 'Chưa rõ'}.",
+            details=details,
+            unit_id=UUID(matched_unit["id"]),
+            fit_level="medium"
+        )
+        
+        try:
+            await create_opportunity_match_unit_notification(session, req)
+            ans = f"Dạ vâng, thông báo đã được gửi tới {matched_unit.get('name')} thành công ạ!" if ctx.language == DetectedLanguage.vi else f"Notification has been sent successfully to {matched_unit.get('name')}!"
+        except Exception as e:
+            logger.error(f"Error creating notification: {e}")
+            ans = f"Đã xảy ra lỗi khi tạo thông báo tới {matched_unit.get('name')} ạ." if ctx.language == DetectedLanguage.vi else f"An error occurred while creating notification to {matched_unit.get('name')}."
+            
+        return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
+
+    @staticmethod
     def _handle_request_deal_form(
         ctx: ConversationContext,
         conv_id: UUID,
@@ -229,7 +294,6 @@ class ChatService:
         assistant_msg_id = uuid4()
         
         logger.info(f"Analyzing context for conv={conv_id}")
-        start_analyze = datetime.now(UTC)
 
         user_msg = ConversationMessage(
             id=user_msg_id,
@@ -301,7 +365,6 @@ class ChatService:
                 session_meta.last_intent = ctx.intent
                 ChatService._save_session_meta(conv, session_meta)
 
-                elapsed_analyze = (datetime.now(UTC) - start_analyze).total_seconds()
                 logger.info(
                     "[Graph Exec] conv=%s intent=%s lang=%s confidence=%.2f",
                     conv_id, ctx.intent.value, ctx.language.value, ctx.confidence,
@@ -340,9 +403,40 @@ class ChatService:
                             ),
                             context=ctx,
                         )
+                        
+                        # Phase 5: Cập nhật danh sách suggested_units vào session_meta
+                        if matched_units:
+                            try:
+                                session_meta.suggested_units = []
+                                for u in matched_units:
+                                    if hasattr(u, "unit"):
+                                        head_id = str(u.unit.head_id) if getattr(u.unit, "head_id", None) else None
+                                        session_meta.suggested_units.append({
+                                            "id": str(u.unit.id),
+                                            "name": getattr(u.unit, "name", ""),
+                                            "code": getattr(u.unit, "code", ""),
+                                            "head_id": head_id
+                                        })
+                                ChatService._save_session_meta(conv, session_meta)
+                            except Exception as emeta:
+                                logger.warning(f"Could not save suggested_units: {emeta}")
+                                
                     except Exception:
                         logger.exception("Matching agent failed; falling back to stub")
                         response = ChatService._stub_response(conv_id)
+
+                elif intent == ChatIntent.send_notification:
+                    logger.info("Executing send_notification intent")
+                    extracted = final_state.get("extracted_entities")
+                    response = await ChatService._handle_send_notification(
+                        session=session,
+                        ctx=ctx,
+                        extracted=extracted,
+                        conv_id=conv_id,
+                        session_meta=session_meta,
+                        user=user
+                    )
+                    response = response.model_copy(update={"context": ctx})
 
                 elif intent == ChatIntent.save_draft:
                     response = ChatService._handle_save_draft(ctx, conv_id, session_meta)

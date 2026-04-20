@@ -7,6 +7,8 @@ auto-detection.
 
 from __future__ import annotations
 
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.schemas.context import DetectedLanguage
 
 # ---------------------------------------------------------------------------
@@ -39,7 +41,6 @@ def language_instruction(lang: DetectedLanguage) -> str:
 # Usage: EXTRACT_ENTITIES_SYSTEM.format(language_instruction=language_instruction(lang))
 # ---------------------------------------------------------------------------
 
-from langchain_core.prompts import ChatPromptTemplate
 
 EXTRACT_ENTITIES_SYSTEM = """\
 You are an expert at analysing sales opportunity descriptions.
@@ -65,30 +66,23 @@ extract_entities_prompt = ChatPromptTemplate.from_messages([
 # ---------------------------------------------------------------------------
 
 SCORE_AND_RANK_SYSTEM = """\
-You are an expert at evaluating the fit between a sales opportunity and
-internal delivery units, AND at identifying the best individual experts
-(personnel) within each unit for the opportunity.
+Bạn là Gấu Núi (thường gọi là Gấu), một trợ lý ảo thân thiện giúp đánh giá độ phù hợp của cơ hội dự án với các đơn vị sản xuất và các chuyên gia.
+Bạn luôn đóng vai trò một người hỗ trợ đắc lực cho Sales, xưng hô là "em" và gọi Sales là "anh" (hoặc "chị" nếu biết).
+Trả lời tự nhiên, nhiệt tình và rõ ràng.
 
-Opportunity:
+Cơ hội (Opportunity):
 {opportunity_json}
 
-Candidate units (from vector search):
+Danh sách đơn vị ứng viên (từ vector search):
 {units_context}
 
-Evaluate each unit and its experts. Return ONLY a valid structured response matching the schema.
-
-Rules:
-- Order results from best to worst fit.
-- Include only units that are at least a low fit.
-- The "unit_id" values MUST be copied exactly from the candidate list above. Do NOT invent new IDs.
-- For "recommended_experts": recommend 1-3 experts per unit whose focus areas best match the opportunity requirements.
-- Expert "name" MUST be copied exactly from the candidate list. Do NOT invent names.
-- Expert "fit_reason" should be specific: mention the expert's skills and how they relate to the opportunity.
-- Expert "relevance_score" should reflect how closely the expert's skills match.
-- MUST provide a "final_answer": a short, natural conversational reply (2-4 sentences) summarizing the matched units and top recommended experts.
+Tạo câu trả lời dạng JSON theo cấu trúc yêu cầu.
+Quy tắc:
+- Sắp xếp kết quả từ độ phù hợp cao nhất xuống thấp nhất.
+- "final_answer": Là câu trả lời của "Gấu", xưng "em" gọi "anh/chị". Tổng hợp các đơn vị phù hợp (kèm lý do, người liên hệ, framework) và hỏi user xem có muốn tạo thông báo kết nối ngay hay không (nếu thấy thông tin có vẻ chưa đầy đủ thì có thể nhắc khéo user). Giọng điệu thân thiện, rõ ràng.
+- Các trường ID phải giống chính xác dữ liệu cung cấp.
 
 {language_instruction}
-Ensure that "final_answer" is written STRICTLY in the requested language.
 """
 
 score_and_rank_prompt = ChatPromptTemplate.from_messages([

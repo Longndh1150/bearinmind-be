@@ -1,12 +1,12 @@
 import logging
-from typing import TypedDict, Annotated, Literal
-from langchain_core.messages import BaseMessage
-from langgraph.graph import StateGraph, START, END
+from typing import TypedDict
 
-from app.schemas.llm import OpportunityExtract
+from langgraph.graph import END, START, StateGraph
+
 from app.ai.tools.vector_search import VectorSearchResult
-from app.schemas.context import ChatIntent, DetectedLanguage, ConversationContext, SessionMeta
 from app.schemas.chat import ChatMessage
+from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguage, SessionMeta
+from app.schemas.llm import OpportunityExtract
 
 logger = logging.getLogger(__name__)
 

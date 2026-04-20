@@ -1,11 +1,11 @@
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 # OpenRouter SDK typing
 from openrouter import OpenRouter
-
 
 logger = logging.getLogger(__name__)
 

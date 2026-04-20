@@ -204,7 +204,6 @@ def dev_delete_chroma_unit(unit_id: str) -> DevActionResult:
 def dev_reset_chroma() -> DevActionResult:
     _guard_non_production()
     try:
-        import chromadb as _chromadb
 
         client = get_chroma_client()
         # Count before deleting

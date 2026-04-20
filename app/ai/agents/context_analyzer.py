@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Literal
 
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openrouter import ChatOpenRouter
-from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
 
-from app.ai.prompts.context import classify_intent_prompt
 from app.ai.constants import LLM_CONTEXT_ANALYZER_MAX_TOKENS
+from app.ai.prompts.context import classify_intent_prompt
 from app.core.config import settings
 from app.core.llm_tracking import LLMTrackingContext
 from app.schemas.chat import ChatMessage
@@ -48,6 +47,14 @@ class ToolSaveDraft(BaseModel):
         description="Relevant entity data extracted for CRM creation."
     )
 
+class ToolSendNotification(BaseModel):
+    """Call this tool when the user intends to notify, connect, or request a unit/division for a project."""
+    language: DetectedLanguage = Field(description="Detected language of the user message.")
+    target_unit: str = Field(description="Name of the unit to notify, e.g. 'DN1'.")
+    notification_extract: OpportunityExtract = Field(
+        description="Relevant entity data extracted specifically for the notification."
+    )
+
 class ToolClarify(BaseModel):
     """Call this tool if the user's request is ambiguous or missing completely."""
     language: DetectedLanguage = Field(description="Detected language of the user message.")
@@ -61,7 +68,7 @@ class ToolGeneralChat(BaseModel):
     language: DetectedLanguage = Field(description="Detected language of the user message.")
 
 # We bind these tools to the LLM. OpenRouter/Langchain will map the JSON response to one of these schemas.
-_TOOLS = [ToolFindUnits, ToolSaveDraft, ToolClarify, ToolGeneralChat]
+_TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolGeneralChat]
 
 def _llm_client() -> ChatOpenRouter:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
@@ -152,10 +159,19 @@ def analyze_context_and_extract(
         tool_name = tool_call["name"]
         args = tool_call["args"]
         
+        detected_lang_str = args.get("language", DetectedLanguage.vi)
+        try:
+            detected_lang = DetectedLanguage(detected_lang_str)
+        except ValueError:
+            detected_lang = DetectedLanguage.vi
+            
+        if detected_lang == DetectedLanguage.unknown:
+            detected_lang = DetectedLanguage(session_language)
+        
         # Default base context
         ctx = ConversationContext(
             intent=ChatIntent.unknown,
-            language=DetectedLanguage(args.get("language", DetectedLanguage.vi)), # type: ignore
+            language=detected_lang,
             confidence=0.9, # Tool calls are generally high confidence
             raw_message=message,
             clarification_needed=None,
@@ -174,6 +190,26 @@ def analyze_context_and_extract(
             save_draft_extract_data = args.get("save_draft_extract", {})
             extracted_data = OpportunityExtract(**save_draft_extract_data)
             
+        elif tool_name == "ToolSendNotification":
+            # Phase 3 Skill: Authenticate/Request Missing info if required fields for Notification are not present
+            notification_data = args.get("notification_extract", {})
+            extracted_data = OpportunityExtract(**notification_data)
+            target = args.get("target_unit")
+            
+            # Simple check for missing information
+            missing = []
+            if not extracted_data.deadline:
+                missing.append("thời gian / deadline")
+            if not extracted_data.scope:
+                missing.append("phạm vi yêu cầu (scope)")
+            
+            if missing:
+                ctx.intent = ChatIntent.clarify
+                ctx.clarification_needed = f"Để thông báo cho {target}, vui lòng cung cấp thêm: {', '.join(missing)}."
+            else:
+                ctx.intent = ChatIntent.send_notification
+                ctx.opportunity_hint = target  # Reuse opportunity_hint to pass target down temporarily or update Context schema later.
+                
         elif tool_name == "ToolClarify":
             ctx.intent = ChatIntent.clarify
             ctx.clarification_needed = args.get("clarification_needed", "Could not understand.")

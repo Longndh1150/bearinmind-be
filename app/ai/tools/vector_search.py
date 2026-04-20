@@ -48,6 +48,7 @@ def _get_collection():
 
         def __init__(self) -> None:
             from openrouter import OpenRouter
+
             from app.core.llm_tracking import instrument_openrouter_client
             self._client = instrument_openrouter_client(OpenRouter(
                 api_key=settings.llm_api_key or "no-key",
@@ -178,8 +179,8 @@ def search_units(query: str, top_k: int = 3) -> list[VectorSearchResult]:
     Returns a flat list of VectorSearchResult instead of raw Chroma dicts
     so callers don't have to unpack nested lists.
     """
-    from datetime import UTC, datetime
     import logging
+    from datetime import UTC, datetime
     logger = logging.getLogger(__name__)
 
     try:

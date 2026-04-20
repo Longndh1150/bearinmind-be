@@ -5,14 +5,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.ai.agents.matching import (
-    _build_units_context,
-    score_and_rank,
-    LLMScoreRankResult,
     LLMRankItem,
     LLMRationale,
+    LLMScoreRankResult,
+    _build_units_context,
+    score_and_rank,
 )
 from app.ai.tools.vector_search import VectorSearchResult
 from app.schemas.llm import OpportunityExtract
+
 
 @pytest.fixture()
 def sample_vector_results() -> list[VectorSearchResult]:

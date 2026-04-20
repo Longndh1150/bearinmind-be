@@ -10,15 +10,13 @@ import logging
 
 from openrouter import OpenRouter
 
-from app.core.config import settings
 from app.ai.constants import LLM_TITLE_GENERATION_MAX_TOKENS
+from app.core.config import settings
+from app.core.llm_tracking import instrument_openrouter_client
 
 logger = logging.getLogger(__name__)
 
 _MAX_TITLE_LEN = 60
-
-
-from app.core.llm_tracking import instrument_openrouter_client
 
 
 def _llm_client() -> OpenRouter:

@@ -21,15 +21,15 @@ from typing import Literal
 from langchain_openrouter import ChatOpenRouter
 from pydantic import BaseModel, Field
 
+from app.ai.constants import (
+    LLM_MATCHING_SCORE_RANK_MAX_TOKENS,
+)
 from app.ai.prompts.matching import (
     extract_entities_prompt,
     language_instruction,
     score_and_rank_prompt,
 )
-from app.ai.constants import (
-    LLM_MATCHING_SCORE_RANK_MAX_TOKENS,
-)
-from app.ai.tools.vector_search import VectorSearchResult, search_units
+from app.ai.tools.vector_search import VectorSearchResult
 from app.core.config import settings
 from app.core.llm_tracking import LLMTrackingContext
 from app.schemas.chat import MatchedExpert, MatchedUnit, MatchRationale, TeamSuggestion

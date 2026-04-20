@@ -19,12 +19,7 @@ from app.ai.prompts.context import classify_intent_prompt
 from app.core.config import settings
 from app.core.llm_tracking import LLMTrackingContext
 from app.schemas.chat import ChatMessage
-from app.schemas.context import (
-    ChatIntent,
-    ConversationContext,
-    DetectedLanguage,
-    SessionMeta,
-)
+from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguage, SessionMeta
 from app.schemas.llm import OpportunityExtract
 
 logger = logging.getLogger(__name__)
@@ -208,14 +203,33 @@ def analyze_context_and_extract(
             if not extracted_data.scope:
                 missing.append("phạm vi yêu cầu (scope)")
             
+            # Additional info for creating the opportunity (optional, but we ask user to confirm them)
+            # If the user didn't specify a title, we'll try to use a generated one or ask them
+            title_str = extracted_data.title or "Dự án mới (chưa rõ tên)"
+            desc_str = extracted_data.description or extracted_data.notes or "Chưa có mô tả chi tiết"
+            
             if missing:
                 ctx.intent = ChatIntent.clarify
                 missing_str = ", ".join(missing)
                 tgt_name = target or "đơn vị"
+                
+                # Combine the missing fields with the opportunity preview
                 if detected_lang == DetectedLanguage.vi:
-                    ctx.clarification_needed = f"Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé: {missing_str}."
+                    ctx.clarification_needed = (
+                        f"Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé: {missing_str}.\n\n"
+                        f"Đồng thời em có tổng hợp sẵn thông tin cơ hội như sau để thêm vào hệ thống:\n"
+                        f"- Tiêu đề: {title_str}\n"
+                        f"- Mô tả: {desc_str}\n"
+                        f"Anh xác nhận hoặc bổ sung giúp em nhé!"
+                    )
                 else:
-                    ctx.clarification_needed = f"Sure! To help the {tgt_name} assist you better, could you please provide: {missing_str}?"
+                    ctx.clarification_needed = (
+                        f"Sure! To help the {tgt_name} assist you better, could you please provide: {missing_str}?\n\n"
+                        f"Also, I drafted the opportunity details as follows:\n"
+                        f"- Title: {title_str}\n"
+                        f"- Description: {desc_str}\n"
+                        f"Please confirm or update!"
+                    )
                 ctx.opportunity_hint = target
             else:
                 ctx.intent = ChatIntent.send_notification

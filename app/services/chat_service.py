@@ -21,12 +21,7 @@ from app.schemas.chat import (
     OpportunityAnalysisCard,
     TeamSuggestion,
 )
-from app.schemas.context import (
-    ChatIntent,
-    ConversationContext,
-    DetectedLanguage,
-    SessionMeta,
-)
+from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguage, SessionMeta
 from app.schemas.llm import OpportunityExtract
 from app.services.update_capabilities_service import handle_update_capabilities
 
@@ -205,7 +200,13 @@ class ChatService:
             NotificationCreateOpportunityMatchUnitRequest,
             OpportunityMatchUnitNotificationDetails,
         )
+        from app.schemas.opportunity import (
+            OpportunityCreateRequest,
+            OpportunityExtracted,
+            OpportunityParty,
+        )
         from app.services.notification_service import create_opportunity_match_unit_notification
+        from app.services.opportunity_service import create_opportunity
         
         target_name = ctx.opportunity_hint or getattr(session_meta, "last_target", "") or ""
         matched_unit = None
@@ -221,6 +222,7 @@ class ChatService:
             from sqlalchemy import select
 
             from app.models.unit import Unit
+
             # Attempt to query from database directly
             unit_rs = await session.execute(
                 select(Unit).where(
@@ -251,6 +253,7 @@ class ChatService:
                     from sqlalchemy import select
 
                     from app.models.user import User as DbUser
+
                     # query for user by email
                     head_rs = await session.execute(select(DbUser).where(DbUser.email == unit_head_val))
                     head_row = head_rs.scalar_one_or_none()
@@ -269,8 +272,42 @@ class ChatService:
             ans = f"Đơn vị {matched_unit.get('name')} hiện chưa có quản lý (đầu mối) để nhận thông báo ạ." if ctx.language == DetectedLanguage.vi else f"Unit {matched_unit.get('name')} currently does not have a designated head to receive notifications."
             return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
             
+        # 1. Create Opportunity in DB
+        title_str = extracted.title if extracted and extracted.title else f"Cơ hội liên quan {matched_unit.get('name')}"
+        desc_str = extracted.description if extracted and extracted.description else (extracted.notes if extracted else "Không có mô tả chi tiết")
+        
+        opp_extracted = OpportunityExtracted(
+            industry=None,
+            market=extracted.market if extracted else None,
+            tech_stack=extracted.tech_stack if extracted else [],
+            budget=None,
+            scale=None,
+        )
+        
+        opp_client = OpportunityParty(
+            name=extracted.client if extracted and extracted.client else "Khách hàng ẩn danh",
+            website=None,
+            country=None,
+        )
+        
+        opp_req = OpportunityCreateRequest(
+            source="chat",
+            title=title_str[:200],  # constraints on schema max length
+            description=desc_str[:10000] if desc_str else "-",
+            client=opp_client,
+            extracted=opp_extracted,
+        )
+        
+        created_opp = await create_opportunity(
+            session=session,
+            payload=opp_req,
+            user_id=user.id,
+            conversation_id=conv_id,
+        )
+        
+        # 2. Prepare Notification details
         details = OpportunityMatchUnitNotificationDetails(
-            opportunity_name=extracted.title or "N/A" if extracted else "N/A",
+            opportunity_name=created_opp.title,
             customer_group=extracted.market if extracted else None,
             deadline=None, # parsing str to date may be complex, ignoring or pass to bear_message
             required_tech=extracted.tech_stack if extracted else [],
@@ -286,25 +323,26 @@ class ChatService:
         
         if ctx.language == DetectedLanguage.vi:
             bear_msg = (
-                f"🐾 Gấu xin chào anh {contact_name}! 🐾\n"
+                f"🐻 Gấu xin chào anh {contact_name}! 🐾\n"
                 f"Em vừa đánh hơi thấy một cơ hội dự án cực kỳ "
                 f"phù hợp với quân số nhà mình luôn đó ạ!\n\n"
-                f"🍯 Anh {contact_name} xem qua thử nghen! Nếu anh hứng thú "
-                f"thì ping ngay {sales_name} team Sales ({user.email}) để múc cái deal này nha! 🐻✨"
+                f"🍯 Anh {contact_name} xem qua thử nha! Nếu anh hứng thú "
+                f"thì ping ngay {sales_name} team Sales ({user.email}) để trao đổi thêm nhé! ✨"
             )
         else:
             bear_msg = (
-                f"🐾 Hello {contact_name}! Bear incoming! 🐾\n"
+                f"🐻 Hello {contact_name}! Bear incoming! 🐾\n"
                 f"I just sniffed out an awesome project opportunity "
                 f"that perfectly matches your unit!\n\n"
                 f"🍯 Please take a look! If you're interested, "
-                f"ping {sales_name} from Sales ({user.email}) to catch this deal! 🐻✨"
+                f"ping {sales_name} from Sales ({user.email}) for more details! ✨"
             )
             
         details.bear_message = bear_msg
         
         req = NotificationCreateOpportunityMatchUnitRequest(
             recipient_user_id=unit_head_id_uuid,
+            opportunity_id=created_opp.id,
             title=f"Opportunity match cho '{matched_unit.get('name')}' từ '{user.email}'",
             message=bear_msg,
             details=details,

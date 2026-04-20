@@ -25,4 +25,7 @@ class OpportunityExtract(BaseModel):
     scope: str | None = Field(default=None, description="Phạm vi công việc hoặc yêu cầu vụ thể, ví dụ: 'CRM', 'BC', 'Mobile app'")
     customer_stage: str | None = Field(default=None, description="Khách hàng đang ở giai đoạn nào, ví dụ: 'Đang tìm hiểu', 'Đã có requirement rõ'")
     requires_estimate_or_demo: bool | None = Field(default=None, description="Có cần estimate sơ bộ hoặc demo không")
+    
+    # Thêm các field cho Opportunity Creation
+    description: str | None = Field(default=None, description="Mô tả chi tiết về cơ hội (do AI tự sinh dựa trên ngữ cảnh nếu chưa có)")
 

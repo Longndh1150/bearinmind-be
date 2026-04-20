@@ -221,8 +221,30 @@ class ChatService:
             ans = f"Dạ, em không tìm thấy đơn vị '{target_name}' trong danh sách vừa gợi ý. Anh/chị vui lòng xác nhận lại nhé!" if ctx.language == DetectedLanguage.vi else f"Sorry, I couldn't find unit '{target_name}' in the recent suggestions. Could you confirm the unit?"
             return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
             
-        unit_head_id = matched_unit.get("head_id")
-        if not unit_head_id:
+        # Try to resolve head_id which might be an email or placeholder
+        unit_head_val = matched_unit.get("head_id")
+        unit_head_id_uuid = None
+        
+        try:
+            if unit_head_val:
+                if "@" in unit_head_val:
+                    from sqlalchemy import select
+                    from app.models.user import User as DbUser
+                    # query for user by email
+                    head_rs = await session.execute(select(DbUser).where(DbUser.email == unit_head_val))
+                    head_row = head_rs.scalar_one_or_none()
+                    if head_row:
+                        unit_head_id_uuid = head_row.id
+                    else:
+                        # Fallback to current user if head is not found in DB
+                        unit_head_id_uuid = user.id
+                else:
+                    unit_head_id_uuid = UUID(unit_head_val)
+        except Exception as e:
+            logger.error(f"Error extracting unit_head user_id: {e}")
+            unit_head_id_uuid = None
+
+        if not unit_head_id_uuid:
             ans = f"Đơn vị {matched_unit.get('name')} hiện chưa có quản lý (đầu mối) để nhận thông báo ạ." if ctx.language == DetectedLanguage.vi else f"Unit {matched_unit.get('name')} currently does not have a designated head to receive notifications."
             return ChatResponse(conversation_id=conv_id, answer=ans, suggested_actions=[])
             
@@ -239,7 +261,7 @@ class ChatService:
         )
         
         req = NotificationCreateOpportunityMatchUnitRequest(
-            recipient_user_id=UUID(unit_head_id),
+            recipient_user_id=unit_head_id_uuid,
             title=f"Opportunity match cho '{matched_unit.get('name')}' từ '{user.email}'",
             message=f"Có cơ hội mới, deadline/timeline dự kiến: {extracted.deadline if extracted and extracted.deadline else 'Chưa rõ'}, Scope: {extracted.scope if extracted and extracted.scope else 'Chưa rõ'}. Giai đoạn: {extracted.customer_stage if extracted and extracted.customer_stage else 'Chưa rõ'}.",
             details=details,
@@ -411,14 +433,12 @@ class ChatService:
                             try:
                                 session_meta.suggested_units = []
                                 for u in matched_units:
-                                    if hasattr(u, "unit"):
-                                        head_id = str(u.unit.head_id) if getattr(u.unit, "head_id", None) else None
-                                        session_meta.suggested_units.append({
-                                            "id": str(u.unit.id),
-                                            "name": getattr(u.unit, "name", ""),
-                                            "code": getattr(u.unit, "code", ""),
-                                            "head_id": head_id
-                                        })
+                                    session_meta.suggested_units.append({
+                                        "id": str(getattr(u, "unit_id", "")),
+                                        "name": getattr(u, "unit_name", ""),
+                                        "code": getattr(u, "unit_name", ""), # Often code is name
+                                        "head_id": getattr(u, "contact_email", None) # Map contact_email or similar
+                                    })
                                 ChatService._save_session_meta(conv, session_meta)
                             except Exception as emeta:
                                 logger.warning(f"Could not save suggested_units: {emeta}")

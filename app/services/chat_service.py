@@ -219,6 +219,7 @@ class ChatService:
                 
         if not matched_unit and target_name:
             from sqlalchemy import select
+
             from app.models.unit import Unit
             # Attempt to query from database directly
             unit_rs = await session.execute(
@@ -232,7 +233,8 @@ class ChatService:
                     "id": str(db_unit.id),
                     "name": db_unit.name,
                     "code": db_unit.code,
-                    "head_id": db_unit.contact_email
+                    "head_id": db_unit.contact_email,
+                    "contact_name": db_unit.contact_name
                 }
 
         if not matched_unit:
@@ -247,6 +249,7 @@ class ChatService:
             if unit_head_val:
                 if "@" in unit_head_val:
                     from sqlalchemy import select
+
                     from app.models.user import User as DbUser
                     # query for user by email
                     head_rs = await session.execute(select(DbUser).where(DbUser.email == unit_head_val))
@@ -278,10 +281,20 @@ class ChatService:
             sales_contact_email=user.email,
         )
         
+        contact_name = matched_unit.get("contact_name") or "anh/chị Manager"
+        skills = ", ".join(extracted.tech_stack) if extracted and extracted.tech_stack else (extracted.scope if extracted and extracted.scope else "liên quan")
+        
+        if ctx.language == DetectedLanguage.vi:
+            bear_msg = f"Hi anh {contact_name}, hiện tại đang có cơ hội dự án phù hợp với đơn vị mình, cần skill {skills}. Anh có thể xem qua và liên hệ với nhóm Sales, cụ thể là {user.email} để trao đổi thêm nhé!"
+        else:
+            bear_msg = f"Hi {contact_name}, there's a new opportunity fitting your division, requiring {skills} skills. Please review and contact the Sales team, specifically {user.email} for more details!"
+            
+        details.bear_message = bear_msg
+        
         req = NotificationCreateOpportunityMatchUnitRequest(
             recipient_user_id=unit_head_id_uuid,
             title=f"Opportunity match cho '{matched_unit.get('name')}' từ '{user.email}'",
-            message=f"Có cơ hội mới, deadline/timeline dự kiến: {extracted.deadline if extracted and extracted.deadline else 'Chưa rõ'}, Scope: {extracted.scope if extracted and extracted.scope else 'Chưa rõ'}. Giai đoạn: {extracted.customer_stage if extracted and extracted.customer_stage else 'Chưa rõ'}.",
+            message=bear_msg,
             details=details,
             unit_id=UUID(matched_unit["id"]),
             fit_level="medium"
@@ -455,7 +468,8 @@ class ChatService:
                                         "id": str(getattr(u, "unit_id", "")),
                                         "name": getattr(u, "unit_name", ""),
                                         "code": getattr(u, "unit_name", ""), # Often code is name
-                                        "head_id": getattr(u, "contact_email", None) # Map contact_email or similar
+                                        "head_id": getattr(u, "contact_email", None),
+                                        "contact_name": getattr(u, "contact_name", None)
                                     })
                                 ChatService._save_session_meta(conv, session_meta)
                             except Exception as emeta:

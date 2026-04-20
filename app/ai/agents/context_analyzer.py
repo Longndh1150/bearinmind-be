@@ -30,7 +30,7 @@ from app.schemas.llm import OpportunityExtract
 logger = logging.getLogger(__name__)
 
 # Maximum number of recent turns to include in history_summary
-_HISTORY_TURNS = 4
+_HISTORY_TURNS = 8
 
 # Define our Pydantic classes for Tool Calling
 class ToolFindUnits(BaseModel):
@@ -48,11 +48,14 @@ class ToolSaveDraft(BaseModel):
     )
 
 class ToolSendNotification(BaseModel):
-    """Call this tool when the user intends to notify, connect, or request a unit/division for a project."""
+    """Call this tool when the user intends to notify, connect, or request a unit/division for a project, or when providing missing info for a notification."""
     language: DetectedLanguage = Field(description="Detected language of the user message.")
-    target_unit: str = Field(description="Name of the unit to notify, e.g. 'DN1'.")
+    target_unit: str | None = Field(
+        default=None,
+        description="Name of the unit to notify, e.g. 'DN1'. MUST extract from conversation history if not specified in the current message."
+    )
     notification_extract: OpportunityExtract = Field(
-        description="Relevant entity data extracted specifically for the notification."
+        description="Relevant entity data extracted specifically for the notification. Merge with history."
     )
 
 class ToolClarify(BaseModel):
@@ -84,9 +87,9 @@ def _build_history_summary(history: list[ChatMessage]) -> list:
     out = []
     for m in recent:
         if m.role == "user":
-            out.append(HumanMessage(content=m.content[:300]))
+            out.append(HumanMessage(content=m.content[:2000]))
         elif m.role == "assistant":
-            out.append(AIMessage(content=m.content[:300]))
+            out.append(AIMessage(content=m.content[:2000]))
     return out
 
 def _fallback_context(message: str) -> tuple[ConversationContext, OpportunityExtract | None]:
@@ -124,6 +127,8 @@ def analyze_context_and_extract(
     else:
         session_language = DetectedLanguage.vi.value
 
+    last_intent_val = session_meta.last_intent.value if session_meta and session_meta.last_intent else "none"
+
     history_msgs = _build_history_summary(history)
 
     client = _llm_client()
@@ -138,6 +143,7 @@ def analyze_context_and_extract(
             "message": message,
             "history": history_msgs,
             "session_language": session_language,
+            "last_intent": last_intent_val,
         })
         t1 = time.time()
 
@@ -152,7 +158,7 @@ def analyze_context_and_extract(
         # Parse the tool call mapping back to ConversationContext and Extracts
         if not response.tool_calls:
             # Fallback if the LLM didn't use a tool (rare with good models, but happens)
-            logger.warning("LLM didn't return a tool call. Using fallback.")
+            logger.warning(f"LLM didn't return a tool call. Response content: {getattr(response, 'content', 'None')}")
             return _fallback_context(message)
 
         tool_call = response.tool_calls[0]
@@ -195,6 +201,8 @@ def analyze_context_and_extract(
             notification_data = args.get("notification_extract", {})
             extracted_data = OpportunityExtract(**notification_data)
             target = args.get("target_unit")
+            if not target and session_meta and getattr(session_meta, "last_target", None):
+                target = session_meta.last_target
             
             # Simple check for missing information
             missing = []
@@ -205,7 +213,13 @@ def analyze_context_and_extract(
             
             if missing:
                 ctx.intent = ChatIntent.clarify
-                ctx.clarification_needed = f"Để thông báo cho {target}, vui lòng cung cấp thêm: {', '.join(missing)}."
+                missing_str = ", ".join(missing)
+                tgt_name = target or "đơn vị"
+                if detected_lang == DetectedLanguage.vi:
+                    ctx.clarification_needed = f"Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé: {missing_str}."
+                else:
+                    ctx.clarification_needed = f"Sure! To help the {tgt_name} assist you better, could you please provide: {missing_str}?"
+                ctx.opportunity_hint = target
             else:
                 ctx.intent = ChatIntent.send_notification
                 ctx.opportunity_hint = target  # Reuse opportunity_hint to pass target down temporarily or update Context schema later.
@@ -223,6 +237,6 @@ def analyze_context_and_extract(
 
         return ctx, extracted_data
 
-    except Exception:
-        logger.exception("Context analysis LLM call failed; using fallback")
+    except Exception as e:
+        logger.exception(f"Context analysis LLM call failed: {e}; using fallback")
         return _fallback_context(message)

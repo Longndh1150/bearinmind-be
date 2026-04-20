@@ -83,6 +83,9 @@ class SessionMeta(BaseModel):
     # UUID of the in-progress opportunity draft, if one has been saved this session
     opportunity_draft_id: UUID | None = None
     
+    # Store target unit implicitly across conversation turns when doing a notification flow
+    last_target: str | None = None
+    
     # Danh sách các đơn vị đã được suggest trong session này (để lookup UUID khi user yêu cầu notification)
     # Lưu dạng list dict, ví dụ: [{"id": "...", "name": "DN1", "user_id": "head_user_id"}]
     suggested_units: list[dict] = Field(default_factory=list)

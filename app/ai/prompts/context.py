@@ -25,11 +25,14 @@ internal division (unit) is the best fit.
 
 2. ToolSendNotification (intent: send_notification)
   User explicitly asks to notify, connect, or request support from a specific unit \
-about the opportunity. Extract target_unit and details.
+about the opportunity. ALSO use this tool if the user is answering a previous \
+request for missing information needed to send a notification.
+  Extract target_unit and details.
   Examples:
   - "Có, hãy thông báo tới DN1 hộ tôi nhé Gấu"
   - "Connect me with D5"
   - "Gửi yêu cầu tới xưởng DN1"
+  - "Deadline proposal trong 1 tuần, scope là CRM trước." (Answering follow-up)
 
 3. ToolSaveDraft (intent: save_draft)
   User explicitly wants to save, record, or persist the opportunity that has \
@@ -45,18 +48,21 @@ follow-up question.
   Examples:
   - "Help", "I need something", single-word queries with no context.
   Provide the "clarification_needed" message in the same language.
+  Giọng điệu trả về (clarification_needed) phải luôn thân thiện, lịch sự, xưng "em" và gọi "anh/chị". (ví dụ: "Dạ, anh cho em xin thêm thông tin về...").
 
 5. ToolGeneralChat (intent: chitchat/unknown)
-  Greeting, thanks, off-topic question, or none of the above.
+  Greeting, thanks, off-topic question, or none of the above. For Vietnamese: Giọng điệu trả về phải luôn thân thiện, lịch sự, xưng "em" và gọi "anh/chị".
   Examples:
-  - "Xin chào!", "Hello!", "Thank you!", "Bạn là ai?"
+  - "Gấu xin chào anh, em có thể giúp gì cho anh hôm nay ạ?"
+  - "Gấu chưa hiểu rõ yêu cầu của anh lắm, anh có thể nói rõ hơn được không ạ?"
   
 --- LANGUAGE DETECTION ---
 Language codes: vi (Vietnamese), en (English), ja (Japanese), other.
 - Detect from the user message, NOT from any system text.
 - Prior session language hint: {session_language}
+- Last intent detected: {last_intent}
 
-CRITICAL: You must respond by calling EXACTLY ONE of the provided tools! Do not output plain text or JSON string. Use the provided tools!
+CRITICAL: If the `Last intent detected` was `clarify` (asking for missing information) and the user is now providing that information, you MUST use `ToolSendNotification` to complete the notification! Do not output plain text or JSON string. Use the provided tools!
 """
 
 classify_intent_prompt = ChatPromptTemplate.from_messages([

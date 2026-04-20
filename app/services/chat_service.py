@@ -207,7 +207,7 @@ class ChatService:
         )
         from app.services.notification_service import create_opportunity_match_unit_notification
         
-        target_name = ctx.opportunity_hint or ""
+        target_name = ctx.opportunity_hint or getattr(session_meta, "last_target", "") or ""
         matched_unit = None
         target_lower = target_name.lower().strip()
         for u in getattr(session_meta, "suggested_units", []):
@@ -363,6 +363,8 @@ class ChatService:
                     
                 session_meta.language = ctx.language
                 session_meta.last_intent = ctx.intent
+                if ctx.opportunity_hint:
+                    session_meta.last_target = ctx.opportunity_hint
                 ChatService._save_session_meta(conv, session_meta)
 
                 logger.info(

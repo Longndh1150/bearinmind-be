@@ -329,7 +329,7 @@ class ChatService:
 
                         response = ChatResponse(
                             conversation_id=conv_id,
-                            answer=answer_text,
+                            answer=answer_text or "Đã nhận yêu cầu nhưng hệ thống chưa tổng hợp được câu trả lời.",
                             extracted_opportunity=extracted,
                             matched_units=matched_units,
                             matched_experts=matched_experts,

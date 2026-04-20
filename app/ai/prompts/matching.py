@@ -85,8 +85,10 @@ Rules:
 - Expert "name" MUST be copied exactly from the candidate list. Do NOT invent names.
 - Expert "fit_reason" should be specific: mention the expert's skills and how they relate to the opportunity.
 - Expert "relevance_score" should reflect how closely the expert's skills match.
+- MUST provide a "final_answer": a short, natural conversational reply (2-4 sentences) summarizing the matched units and top recommended experts.
 
 {language_instruction}
+Ensure that "final_answer" is written STRICTLY in the requested language.
 """
 
 score_and_rank_prompt = ChatPromptTemplate.from_messages([

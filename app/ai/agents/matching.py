@@ -217,7 +217,15 @@ def score_and_rank(
         )
 
     llm_results: list[LLMRankItem] = data.results
-    final_answer = data.final_answer
+    final_answer = data.final_answer.strip()
+    
+    if not final_answer:
+        lang_map = {
+            DetectedLanguage.vi: "Dựa trên yêu cầu của bạn, đây là một số gợi ý phù hợp:",
+            DetectedLanguage.en: "Based on your request, here are some suitable recommendations:",
+            DetectedLanguage.ja: "ご要望に基づき、いくつかの適切な提案を以下に示します："
+        }
+        final_answer = lang_map.get(language, lang_map[DetectedLanguage.vi])
 
     # Authoritative lookup: unit_id → VectorSearchResult (IDs come from the system, not LLM)
     meta_by_id = {r.unit_id: r for r in vector_results}

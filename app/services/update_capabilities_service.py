@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 async def handle_update_capabilities(ctx: ConversationContext, conv_id: UUID, message: str) -> ChatResponse:
     """Isolated Chat Handler for the update_capabilities context intent (US3)."""
     # Parse request and validate target unit via US3 isolated flow
-    parsed_req = parse_and_validate_capabilities_request(message, ctx.language)
+    _ = parse_and_validate_capabilities_request(message, ctx.language)
     
     logger.info(f"Parsed US3 capability request successfully for conversation: {conv_id}")
     

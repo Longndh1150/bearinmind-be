@@ -13,6 +13,8 @@ class ChatIntent(StrEnum):
 
     # US1: user describes an opportunity and wants to find matching divisions
     find_units = "find_units"
+    # US1: user wants to send notify/connect to a unit
+    send_notification = "send_notification"
     # US5: user explicitly asks to save/persist the discussed opportunity as a draft
     save_draft = "save_draft"
     # US5: user wants to create a HubSpot deal — FE will show the deal form
@@ -32,6 +34,7 @@ class DetectedLanguage(StrEnum):
     en = "en"       # English
     ja = "ja"       # Japanese
     other = "other"
+    unknown = "unknown"
 
 
 class ConversationContext(BaseModel):
@@ -79,6 +82,10 @@ class SessionMeta(BaseModel):
     last_intent: ChatIntent = ChatIntent.unknown
     # UUID of the in-progress opportunity draft, if one has been saved this session
     opportunity_draft_id: UUID | None = None
+    
+    # Danh sách các đơn vị đã được suggest trong session này (để lookup UUID khi user yêu cầu notification)
+    # Lưu dạng list dict, ví dụ: [{"id": "...", "name": "DN1", "user_id": "head_user_id"}]
+    suggested_units: list[dict] = Field(default_factory=list)
 
 
 __all__ = [

@@ -10,11 +10,11 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from openai import OpenAI
+from openrouter import OpenRouter
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection
+from app.ai.tools.vector_search import COLLECTION_NAME, _get_collection, get_chroma_client
 from app.core.config import settings
 from app.db.session import get_session
 from app.integrations.hubspot_client import HubSpotAPIError
@@ -76,6 +76,16 @@ class DevSmokeResult(BaseModel):
         default=None,
         description="Short diagnostic (e.g. model name, counts). Never includes API keys.",
     )
+
+
+class DevToolCallingResult(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    ok: bool
+    model: str
+    tool_calls: list[dict] = Field(default_factory=list)
+    raw_content: str | None = None
+    error: str | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -194,9 +204,8 @@ def dev_delete_chroma_unit(unit_id: str) -> DevActionResult:
 def dev_reset_chroma() -> DevActionResult:
     _guard_non_production()
     try:
-        import chromadb as _chromadb
 
-        client = _chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+        client = get_chroma_client()
         # Count before deleting
         try:
             col = client.get_collection(COLLECTION_NAME)
@@ -208,7 +217,7 @@ def dev_reset_chroma() -> DevActionResult:
             client.delete_collection(COLLECTION_NAME)
         except Exception:
             pass  # already gone
-        client.create_collection(COLLECTION_NAME)
+        _get_collection()
     except Exception as exc:
         logger.exception("Chroma reset failed")
         raise HTTPException(status_code=502, detail=f"ChromaDB error: {exc}") from exc
@@ -255,9 +264,10 @@ def _smoke_llm_sync() -> DevSmokeResult:
     kwargs: dict = {"api_key": settings.llm_api_key}
     if settings.llm_base_url:
         kwargs["base_url"] = settings.llm_base_url
-    client = OpenAI(**kwargs)
+    from app.core.llm_tracking import instrument_openrouter_client
+    client = instrument_openrouter_client(OpenRouter(api_key=settings.llm_api_key))
     try:
-        resp = client.chat.completions.create(
+        resp = client.chat.send(
             model=settings.llm_model_secondary,
             messages=[{"role": "user", "content": "Reply with exactly: ok"}],
             max_tokens=8,
@@ -275,6 +285,46 @@ def _smoke_llm_sync() -> DevSmokeResult:
     )
 
 
+def _smoke_embedding_sync(model_override: str | None = None) -> DevSmokeResult:
+    """Blocking LLM ping (runs in a thread pool from async route)."""
+    if not (settings.llm_api_key or "").strip():
+        return DevSmokeResult(ok=False, message="LLM_API_KEY is not set or empty.", detail=None)
+
+    from app.core.llm_tracking import instrument_openrouter_client
+    client = instrument_openrouter_client(OpenRouter(api_key=settings.llm_api_key))
+    target_model = model_override or settings.llm_embedding_model
+
+    try:
+        resp = client.embeddings.generate(
+            model=target_model,
+            input="Review and score",
+        )
+        dims = len(resp.data[0].embedding) if resp.data else 0
+    except Exception as exc:
+        logger.warning("Embedding smoke failed: %s", exc)
+        return DevSmokeResult(ok=False, message="Embedding request failed.", detail=str(exc)[:400])
+
+    return DevSmokeResult(
+        ok=True,
+        message="Embedding API works.",
+        detail=f"model={target_model!r}, dimensions={dims}",
+    )
+
+
+@router.get(
+    "/smoke/embeddings",
+    response_model=DevSmokeResult,
+    summary="[DEV] Smoke test Embedding API",
+    description=(
+        "Calls the configured OpenRouter API to generate embeddings. "
+        "Use to verify LLM_API_KEY. Disabled in production."
+    ),
+)
+async def dev_smoke_embeddings(model: str | None = None) -> DevSmokeResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_embedding_sync, model_override=model)
+
+
 @router.get(
     "/smoke/llm",
     response_model=DevSmokeResult,
@@ -288,6 +338,68 @@ def _smoke_llm_sync() -> DevSmokeResult:
 async def dev_smoke_llm() -> DevSmokeResult:
     _guard_non_production()
     return await asyncio.to_thread(_smoke_llm_sync)
+
+
+def _smoke_tool_calling_sync(model_override: str | None = None) -> DevToolCallingResult:
+    """Evaluate if the model correctly supports and invokes a function call."""
+    if not (settings.llm_api_key or "").strip():
+        return DevToolCallingResult(ok=False, model="", error="LLM_API_KEY is not set or empty.")
+
+    kwargs: dict = {"api_key": settings.llm_api_key}
+    if settings.llm_base_url:
+        kwargs["base_url"] = settings.llm_base_url
+
+    target_model = model_override or settings.llm_model_secondary
+
+    from langchain_openrouter import ChatOpenRouter
+
+    class MockWeatherTool(BaseModel):
+        """Get the current weather in a given location."""
+        location: str = Field(description="The city and state, e.g. Hanoi, Vietnam")
+        unit: str = Field(description="The temperature unit to use", enum=["celsius", "fahrenheit"])
+
+    try:
+        client = ChatOpenRouter(
+            **kwargs,
+            model=target_model,
+            max_tokens=500,
+            max_retries=1
+        )
+        
+        # Bind the mock tool
+        llm_with_tools = client.bind_tools([MockWeatherTool])
+        
+        # Invoke the chain, asking a clear question that matches the tool description
+        response = llm_with_tools.invoke("What's the weather like in Hanoi, Vietnam in celsius?")
+
+        # Output might be missing tool calls depending on the model's support
+        ok = len(response.tool_calls) > 0
+        
+        return DevToolCallingResult(
+            ok=ok,
+            model=target_model,
+            tool_calls=response.tool_calls,
+            raw_content=str(response.content) if response.content else None,
+            error=None if ok else "Model did not return any tool calls."
+        )
+    except Exception as exc:
+        logger.exception("Tool calling smoke test failed")
+        return DevToolCallingResult(ok=False, model=target_model, error=str(exc)[:400])
+
+
+@router.get(
+    "/smoke/tool-calling",
+    response_model=DevToolCallingResult,
+    summary="[DEV] Smoke test LLM Tool Calling",
+    description=(
+        "Calls the configured OpenRouter API with a bound tool to verify if "
+        "function-calling works. Use `?model=...` to test a specific model. "
+        "Disabled in production."
+    ),
+)
+async def dev_smoke_tool_calling(model: str | None = None) -> DevToolCallingResult:
+    _guard_non_production()
+    return await asyncio.to_thread(_smoke_tool_calling_sync, model)
 
 
 @router.get(

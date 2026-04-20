@@ -50,6 +50,7 @@ class UserService:
         user = User(
             email=str(data.email).lower(),
             full_name=data.full_name,
+            preferred_language=data.preferred_language,
             password_hash=hash_password(data.password),
             is_active=True,
             is_superuser=is_superuser,

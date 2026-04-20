@@ -109,6 +109,28 @@ class OpportunityAnalysisCard(BaseModel):
     )
 
 
+class MatchedExpert(BaseModel):
+    """An expert recommended for an opportunity, with evidence of suitability."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200, description="Expert name (from system data).")
+    unit_id: str = Field(min_length=1, max_length=100, description="ID of the unit this expert belongs to.")
+    unit_name: str = Field(min_length=1, max_length=200, description="Name of the unit for display.")
+    focus_areas: list[str] = Field(default_factory=list, description="Expert's specialization areas.")
+    fit_reason: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="Why this expert is a good fit for the opportunity.",
+    )
+    evidence: list[str] = Field(
+        default_factory=list,
+        description="Concrete evidence points supporting the recommendation.",
+    )
+    relevance_score: float = Field(ge=0, le=1, examples=[0.85], description="How relevant this expert is (0-1).")
+    profile_url: str | None = Field(default=None, max_length=500)
+
+
 class TeamSuggestion(BaseModel):
     """Rich suggestion card payload to render interactive UI on FE."""
 
@@ -135,6 +157,10 @@ class TeamSuggestion(BaseModel):
         default=None,
         description="FE styling hint.",
         examples=["primary"],
+    )
+    recommended_experts: list[MatchedExpert] = Field(
+        default_factory=list,
+        description="Experts from this unit recommended for the opportunity.",
     )
 
 
@@ -198,6 +224,10 @@ class ChatResponse(BaseModel):
         description="Best-effort structured extraction from user message.",
     )
     matched_units: list[MatchedUnit] = Field(default_factory=list)
+    matched_experts: list[MatchedExpert] = Field(
+        default_factory=list,
+        description="Experts recommended for this opportunity across all matched units.",
+    )
     analysis_card: OpportunityAnalysisCard | None = Field(
         default=None,
         description="Optional analysis summary card for FE to render above suggestions.",
@@ -232,6 +262,7 @@ __all__ = [
     "ConversationMessagePublic",
     "ConversationSummary",
     "MatchLevel",
+    "MatchedExpert",
     "MatchedUnit",
     "MatchRationale",
     "OpportunityAnalysisCard",

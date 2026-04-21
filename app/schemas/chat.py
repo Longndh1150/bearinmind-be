@@ -170,10 +170,6 @@ class ChatMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1, max_length=20_000, examples=["We have a D365 project for Japan retail."])
-    history: list[ChatMessage] = Field(
-        default_factory=list,
-        description="Optional recent chat history for stateless clients; server may ignore if it stores history.",
-    )
 
     allow_crm_write: bool = Field(
         default=False,

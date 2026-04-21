@@ -41,38 +41,23 @@ otification_service.create(...)) để tạo thông báo thực sự lưu vào D
 > "Gấu ơi, tôi đang có một cơ hội ở Tokyo về Microsoft Dynamics 365, cần một Senior có thể tham gia làm proposal. Bạn giúp tôi xem đơn vị nào phù hợp không?"
 
 **2. Gấu trả lời:**
-> Anh ơi, với cơ hội Microsoft Dynamics 365 tại thị trường Nhật, em thấy có một số đơn vị phù hợp như sau:
+> "Chào anh ạ, em là Gấu đây! Em đã rà soát hệ thống và tìm thấy 3 đơn vị có năng lực liên quan đến Microsoft Dynamics 365 cho cơ hội tại Tokyo lần này.
 > 
-> **1. DN1**
-> - Là đơn vị có năng lực mạnh nhất hiện tại về D365
-> - Có 3 Senior có thể tham gia presale và proposal
-> - Có hơn 20 members có kinh nghiệm
-> - Đã triển khai các case:
->   - D365 CRM
->   - D365 Business Central
-> - Đầu mối liên hệ: ThangLB (Section Lead), PhongND (Division Lead)
+> Trong đó, đơn vị **DN1** là ứng cử viên sáng giá nhất vì họ có đội ngũ Senior cực mạnh, chuyên làm presale và proposal cho thị trường Nhật (từng làm cho Fujitsu). Anh nên ưu tiên kết nối với anh **ThangLB** bên đó nhé. Các đơn vị khác như D5 và G10 cũng có kinh nghiệm nhưng mức độ chuyên sâu về D365 để viết proposal thì chưa bằng DN1.
 > 
-> **2. D5**
-> - Có kinh nghiệm triển khai các dự án liên quan D365
-> - Hiện chưa có Senior chuyên sâu
-> - Có hơn 10 members có kinh nghiệm
-> - Đầu mối liên hệ: MinhLN (Delivery Lead)
-> 
-> 👉 **Gợi ý**: Với nhu cầu cần Senior tham gia proposal, DN1 sẽ là lựa chọn phù hợp hơn.
-> Anh có muốn em kết nối nhanh không?
+> Thông tin chi tiết em đã liệt kê bên dưới, anh xem qua nhé. Nếu anh thấy ưng ý, anh có muốn em hỗ trợ tạo thông báo kết nối ngay với các đơn vị này không ạ? (Tiện thể, nếu anh có thêm thông tin về quy mô dự án thì nhắn em để em lọc kỹ hơn cho anh nhé!)"
 
 **3. Sales trả lời:**
-> "Có, hãy thông báo tới DN1 hộ tôi nhé Gấu"
+> "Ok Gấu, dự án này là triển khai D365 cho mảng bán lẻ, khách hàng là AEON tại Nhật Bản nhé. Quy mô dự kiến cần khoảng 10 members trong 6 tháng, ngân sách cho Phase 1 tầm 200k USD. Gấu giúp anh tạo cơ hội và thông báo kết nối tới DN1 luôn nhé!"
 
 **4. Gấu trả lời:**
-> Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé:
-> - Timeline dự kiến cho proposal (deadline khi nào?)
-> - Phạm vi yêu cầu (CRM, BC hay full D365?)
-> - Khách hàng đang ở giai đoạn nào (đang tìm hiểu hay đã có requirement rõ?)
-> - Có cần estimate sơ bộ hoặc demo không?
+> "Dạ vâng, em đã lưu thông tin cơ hội dự án AEON (Retail) với quy mô $200k vào hệ thống rồi ạ! Để bộ phận **DN1** có thể chuẩn bị tốt nhất và lên lịch hỗ trợ, anh bổ sung giúp em vài chi tiết cho thông báo nhé:
+> - Timeline dự kiến nộp proposal (deadline khi nào?)
+> - Khách hàng đang ở giai đoạn nào (đang tìm hiểu hay đã có requirement rõ ràng?)
+> - Có cần DN1 làm estimate sơ bộ hoặc demo hệ thống luôn không ạ?"
 
 **5. Sales trả lời:**
-> "Deadline proposal trong 1 tuần, scope là CRM trước. Khách đang ở giai đoạn tìm hiểu, cần estimate sơ bộ."
+> "Deadline nộp proposal là thứ Sáu tuần sau nha. Khách hàng đã có requirement sơ bộ rồi, cần gửi estimate và chuẩn bị 1 buổi demo hệ thống."
 
 **6. Gấu trả lời:**
-> Dạ vâng, thông báo đã được gửi tới DN1.
+> "Dạ vâng, em đã cập nhật và gửi thông báo kết nối cơ hội AEON tới DN1, đính kèm đầy đủ yêu cầu estimate và chuẩn bị demo cho deadline thứ Sáu tuần sau rồi ạ. Gấu chúc dự án thành công chốt được deal bự nha! 🐻✨"

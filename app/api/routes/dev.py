@@ -229,6 +229,34 @@ def dev_reset_chroma() -> DevActionResult:
     )
 
 
+@router.delete(
+    "/postgres/units",
+    response_model=DevActionResult,
+    summary="[DEV] Reset Postgres — delete ALL units",
+    description="Deletes all units from PostgreSQL database. Disabled in production.",
+)
+async def dev_reset_postgres(session: AsyncSession = Depends(get_session)) -> DevActionResult:
+    _guard_non_production()
+    try:
+        from sqlalchemy import delete
+
+        from app.models.unit import Unit
+
+        result = await session.execute(delete(Unit))
+        await session.commit()
+        count = result.rowcount
+    except Exception as exc:
+        await session.rollback()
+        logger.exception("Postgres reset failed")
+        raise HTTPException(status_code=502, detail=f"Database error: {exc}") from exc
+
+    return DevActionResult(
+        action="reset_postgres",
+        affected=count,
+        message=f"Deleted {count} unit(s) from PostgreSQL.",
+    )
+
+
 @router.post(
     "/chroma/seed",
     response_model=DevActionResult,

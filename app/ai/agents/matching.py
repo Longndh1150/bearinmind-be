@@ -185,8 +185,13 @@ def score_and_rank(
     language: DetectedLanguage = _DEFAULT_LANGUAGE,
 ) -> tuple[list[MatchedUnit], list[MatchedExpert], list[TeamSuggestion], str]:
     """Return (matched_units, matched_experts, suggestions, final_answer) for the chat response."""
+    fallback_msg = {
+        DetectedLanguage.vi: "Dựa trên yêu cầu của anh, hiện tại em chưa tìm thấy đơn vị hoặc chuyên gia phù hợp nào ạ. Gấu sẽ tiếp tục cập nhật thêm các đơn vị và chuyên gia vào hệ thống, mong anh thông cảm nhé!",
+        DetectedLanguage.en: "Based on your request, we currently couldn't find any suitable units or experts. We will continue to update our system with more units and experts, thank you for your understanding!",
+        DetectedLanguage.ja: "ご要望に基づき、現在のところ適切なユニットや専門家が見つかりませんでした。今後もシステムにより多くのユニットや専門家を追加していきますので、ご了承ください。",
+    }
     if not vector_results:
-        return [], [], [], "No units or experts found."
+        return [], [], [], fallback_msg.get(language, fallback_msg[DetectedLanguage.vi])
 
     client = _llm_client(max_tokens=LLM_MATCHING_SCORE_RANK_MAX_TOKENS)
     units_context = _build_units_context(vector_results)
@@ -203,7 +208,7 @@ def score_and_rank(
         t1 = time.time()
     except Exception:
         logger.exception("Score/rank LLM call failed; returning empty results")
-        return [], [], [], "There was an error."
+        return [], [], [], fallback_msg.get(language, fallback_msg[DetectedLanguage.vi])
 
     data: LLMScoreRankResult = response["parsed"]
     raw_msg = response["raw"]
@@ -221,7 +226,7 @@ def score_and_rank(
     
     if not final_answer:
         lang_map = {
-            DetectedLanguage.vi: "Dựa trên yêu cầu của bạn, đây là một số gợi ý phù hợp:",
+            DetectedLanguage.vi: "Dựa trên yêu cầu của anh, đây là một số gợi ý phù hợp:",
             DetectedLanguage.en: "Based on your request, here are some suitable recommendations:",
             DetectedLanguage.ja: "ご要望に基づき、いくつかの適切な提案を以下に示します："
         }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,6 +35,8 @@ class SemVer:
 
 RE_INIT_VERSION = re.compile(r'^(?P<prefix>\s*__version__\s*=\s*")(?P<ver>\d+\.\d+\.\d+)(?P<suffix>"\s*)$')
 RE_PYPROJECT_VERSION = re.compile(r'^(?P<prefix>\s*version\s*=\s*")(?P<ver>\d+\.\d+\.\d+)(?P<suffix>"\s*)$')
+RE_LOCK_PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"(?P<name>[^"]+)"\s*$')
+RE_LOCK_PACKAGE_VERSION = re.compile(r'^(?P<prefix>\s*version\s*=\s*")(?P<ver>\d+\.\d+\.\d+)(?P<suffix>"\s*)$')
 
 
 def _replace_first_matching_line(path: Path, pattern: re.Pattern[str], new_version: str) -> tuple[str, str]:
@@ -63,6 +66,68 @@ def _repo_root_from_this_file() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _project_name_from_pyproject(pyproject_path: Path) -> str:
+    data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    project = data.get("project", {})
+    name = project.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise RuntimeError(f"Missing [project].name in {pyproject_path}")
+    return name.strip()
+
+
+def _replace_uv_lock_project_version(lock_path: Path, project_name: str, new_version: str) -> tuple[str, str]:
+    original = lock_path.read_text(encoding="utf-8")
+    lines = original.splitlines(keepends=True)
+
+    replaced = False
+    old_version: str | None = None
+    in_package_block = False
+    target_block = False
+
+    for i, line in enumerate(lines):
+        stripped = line.rstrip("\n").rstrip("\r")
+
+        if stripped == "[[package]]":
+            in_package_block = True
+            target_block = False
+            continue
+
+        if stripped.startswith("[[") and stripped != "[[package]]":
+            in_package_block = False
+            target_block = False
+            continue
+
+        if not in_package_block:
+            continue
+
+        name_match = RE_LOCK_PACKAGE_NAME.match(stripped)
+        if name_match:
+            target_block = name_match.group("name") == project_name
+            continue
+
+        if not target_block:
+            continue
+
+        version_match = RE_LOCK_PACKAGE_VERSION.match(stripped)
+        if version_match:
+            old_version = version_match.group("ver")
+            lines[i] = (
+                f'{version_match.group("prefix")}{new_version}{version_match.group("suffix")}'
+                + ("\n" if line.endswith("\n") else "")
+            )
+            replaced = True
+            break
+
+    if not replaced or old_version is None:
+        raise RuntimeError(
+            f'Could not find [[package]] entry for name "{project_name}" with a version in {lock_path}'
+        )
+
+    updated = "".join(lines)
+    lock_path.write_text(updated, encoding="utf-8")
+    return old_version, new_version
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Bump backend version (semver) and sync files.")
     g = parser.add_mutually_exclusive_group(required=True)
@@ -80,6 +145,8 @@ def main(argv: list[str] | None = None) -> int:
     root = _repo_root_from_this_file()
     init_py = root / "app" / "__init__.py"
     pyproject = root / "pyproject.toml"
+    uv_lock = root / "uv.lock"
+    project_name = _project_name_from_pyproject(pyproject)
 
     init_text = init_py.read_text(encoding="utf-8")
     m = None
@@ -100,10 +167,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         print(f"{init_py}: {current} -> {next_ver}")
         print(f"{pyproject}: {current} -> {next_ver}")
+        print(f'{uv_lock} ({project_name}): {current} -> {next_ver}')
         return 0
 
     _replace_first_matching_line(init_py, RE_INIT_VERSION, str(next_ver))
     _replace_first_matching_line(pyproject, RE_PYPROJECT_VERSION, str(next_ver))
+    _replace_uv_lock_project_version(uv_lock, project_name, str(next_ver))
 
     print(str(next_ver))
     return 0

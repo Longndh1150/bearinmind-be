@@ -139,6 +139,8 @@ class ChatService:
     def _handle_clarify(
         ctx: ConversationContext,
         conv_id: UUID,
+        *,
+        extracted: OpportunityExtract | None = None,
     ) -> ChatResponse:
         question = ctx.clarification_needed or (
             "Bạn có thể mô tả cụ thể hơn về cơ hội hoặc yêu cầu không?"
@@ -149,6 +151,7 @@ class ChatService:
             conversation_id=conv_id,
             answer=question,
             suggested_actions=[],
+            extracted_opportunity=extracted,
         )
 
     @staticmethod
@@ -521,6 +524,19 @@ class ChatService:
                 session_meta.last_intent = ctx.intent
                 if ctx.opportunity_hint:
                     session_meta.last_target = ctx.opportunity_hint
+
+                extracted_entities = final_state.get("extracted_entities")
+                if (
+                    getattr(ctx, "notification_flow", False)
+                    and isinstance(extracted_entities, OpportunityExtract)
+                ):
+                    if ctx.intent == ChatIntent.clarify:
+                        session_meta.pending_notification_extract = extracted_entities.model_dump(
+                            mode="json"
+                        )
+                    elif ctx.intent == ChatIntent.send_notification:
+                        session_meta.pending_notification_extract = None
+
                 ChatService._save_session_meta(conv, session_meta)
 
                 logger.info(
@@ -612,7 +628,11 @@ class ChatService:
                     response = response.model_copy(update={"context": ctx})
 
                 elif intent == ChatIntent.clarify:
-                    response = ChatService._handle_clarify(ctx, conv_id)
+                    ext = final_state.get("extracted_entities")
+                    clarify_extract = ext if isinstance(ext, OpportunityExtract) else None
+                    response = ChatService._handle_clarify(
+                        ctx, conv_id, extracted=clarify_extract
+                    )
                     response = response.model_copy(update={"context": ctx})
 
                 elif intent == ChatIntent.qna:

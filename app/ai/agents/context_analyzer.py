@@ -7,7 +7,9 @@ This leverages ChatOpenRouter and tool-calling schemas matching the old separate
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
 from typing import Literal
 
@@ -80,6 +82,97 @@ class ToolUpdateUnitCapabilities(BaseModel):
 # We bind these tools to the LLM. OpenRouter/Langchain will map the JSON response to one of these schemas.
 _TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolQnA, ToolGeneralChat, ToolUpdateUnitCapabilities]
 
+
+def _merge_opportunity_dicts(
+    pending: dict | None,
+    incoming: dict,
+) -> dict:
+    """Prefer non-empty incoming values; keep prior session values when new ones are null/empty."""
+    base = dict(pending or {})
+    for key, val in incoming.items():
+        if val is None:
+            continue
+        if isinstance(val, list) and len(val) == 0:
+            continue
+        if isinstance(val, str) and not val.strip():
+            continue
+        base[key] = val
+    return base
+
+
+def _enrich_scope_from_narrative(extracted: OpportunityExtract, message: str) -> None:
+    """Infer scope from user text when the model left it empty."""
+    if extracted.scope and extracted.scope.strip():
+        return
+    blob = " ".join(
+        [
+            message,
+            extracted.description or "",
+            extracted.notes or "",
+            " ".join(extracted.requirements),
+        ]
+    ).lower()
+    parts: list[str] = []
+    if "d365" in blob or "dynamics 365" in blob or "dynamics365" in blob:
+        parts.append("Microsoft Dynamics 365")
+    if "bán lẻ" in blob or "retail" in blob:
+        parts.append("mảng bán lẻ (Retail)")
+    if re.search(r"\bcrm\b", blob):
+        parts.append("CRM")
+    if "business central" in blob or "bc" in blob.split():
+        parts.append("Business Central")
+    if parts:
+        extracted.scope = " — ".join(parts)
+
+
+def _format_opportunity_lines(extracted: OpportunityExtract, lang: DetectedLanguage) -> str:
+    """Human-readable bullet list of everything we will echo back to the user."""
+    lines: list[str] = []
+    if extracted.title:
+        lines.append(f"- Tiêu đề: {extracted.title}")
+    if extracted.client:
+        lines.append(f"- Khách hàng: {extracted.client}")
+    if extracted.market:
+        lines.append(f"- Thị trường: {extracted.market}")
+    if extracted.tech_stack:
+        lines.append(f"- Công nghệ: {', '.join(extracted.tech_stack)}")
+    if extracted.scope:
+        lines.append(f"- Phạm vi (scope): {extracted.scope}")
+    if extracted.deadline:
+        lines.append(f"- Thời hạn / mốc quan trọng: {extracted.deadline}")
+    if extracted.customer_stage:
+        lines.append(f"- Giai đoạn khách hàng: {extracted.customer_stage}")
+    if extracted.requires_estimate_or_demo is not None:
+        yn = "có" if extracted.requires_estimate_or_demo else "không"
+        lines.append(f"- Cần estimate / demo: {yn}")
+    if extracted.description:
+        lines.append(f"- Mô tả: {extracted.description}")
+    if extracted.notes:
+        lines.append(f"- Ghi chú thêm: {extracted.notes}")
+    if extracted.requirements:
+        lines.append(f"- Yêu cầu / quy mô: {'; '.join(extracted.requirements)}")
+
+    if lines:
+        return "\n".join(lines)
+    if lang == DetectedLanguage.vi:
+        return "- (chưa tách được chi tiết — anh bổ sung giúp em nhé)"
+    return "- (No structured details yet — please add more.)"
+
+
+def _notification_missing_fields(extracted: OpportunityExtract) -> list[str]:
+    """Fields required before sending a unit notification (aligned with US1 demo)."""
+    missing: list[str] = []
+    if not extracted.scope or not extracted.scope.strip():
+        missing.append("phạm vi yêu cầu (scope / module)")
+    if not extracted.deadline or not str(extracted.deadline).strip():
+        missing.append("hạn chốt hoặc mốc thời gian quan trọng (ví dụ deadline nộp proposal)")
+    if not extracted.customer_stage or not str(extracted.customer_stage).strip():
+        missing.append("khách hàng đang ở giai đoạn nào")
+    if extracted.requires_estimate_or_demo is None:
+        missing.append("có cần estimate sơ bộ hoặc demo hệ thống không")
+    return missing
+
+
 def _llm_client() -> ChatOpenRouter:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
     if settings.llm_base_url:
@@ -146,11 +239,15 @@ def analyze_context_and_extract(
 
     try:
         t0 = time.time()
+        pending_raw = session_meta.pending_notification_extract if session_meta else None
+        pending_opportunity = json.dumps(pending_raw, ensure_ascii=False) if pending_raw else "{}"
+
         response = chain.invoke({
             "message": message,
             "history": history_msgs,
             "session_language": session_language,
             "last_intent": last_intent_val,
+            "pending_opportunity": pending_opportunity,
         })
         t1 = time.time()
 
@@ -204,46 +301,41 @@ def analyze_context_and_extract(
             extracted_data = OpportunityExtract(**save_draft_extract_data)
             
         elif tool_name in ["ToolSendNotification", "send_notification"]:
+            ctx.notification_flow = True
             # Phase 3 Skill: Authenticate/Request Missing info if required fields for Notification are not present
             notification_data = args.get("notification_extract", {})
-            extracted_data = OpportunityExtract(**notification_data)
+            merged_dict = _merge_opportunity_dicts(
+                session_meta.pending_notification_extract if session_meta else None,
+                notification_data,
+            )
+            extracted_data = OpportunityExtract(**merged_dict)
+            _enrich_scope_from_narrative(extracted_data, message)
+
             target = args.get("target_unit")
             if not target and session_meta and getattr(session_meta, "last_target", None):
                 target = session_meta.last_target
-            
-            # Simple check for missing information
-            missing = []
-            if not extracted_data.deadline:
-                missing.append("thời gian / deadline")
-            if not extracted_data.scope:
-                missing.append("phạm vi yêu cầu (scope)")
-            
-            # Additional info for creating the opportunity (optional, but we ask user to confirm them)
-            # If the user didn't specify a title, we'll try to use a generated one or ask them
-            title_str = extracted_data.title or "Dự án mới (chưa rõ tên)"
-            desc_str = extracted_data.description or extracted_data.notes or "Chưa có mô tả chi tiết"
-            
+
+            missing = _notification_missing_fields(extracted_data)
+
             if missing:
                 ctx.intent = ChatIntent.clarify
                 missing_str = ", ".join(missing)
-                tgt_name = target or "đơn vị"
-                
-                # Combine the missing fields with the opportunity preview
+                tgt_name = (target or "đơn vị").strip() or "đơn vị"
+                summary_block = _format_opportunity_lines(extracted_data, detected_lang)
+
                 if detected_lang == DetectedLanguage.vi:
                     ctx.clarification_needed = (
-                        f"Dạ vâng, để các đơn vị có thể hỗ trợ nhanh hơn, anh cho em xin thêm một số thông tin nhé: {missing_str}.\n\n"
-                        f"Đồng thời em có tổng hợp sẵn thông tin cơ hội như sau để thêm vào hệ thống:\n"
-                        f"- Tiêu đề: {title_str}\n"
-                        f"- Mô tả: {desc_str}\n"
-                        f"Anh xác nhận hoặc bổ sung giúp em nhé!"
+                        f"Dạ vâng, em đã ghi nhận các thông tin anh cung cấp cho cơ hội này trong phiên làm việc "
+                        f"(em sẽ giữ lại để anh không phải nhắc lại) như sau:\n"
+                        f"{summary_block}\n\n"
+                        f"Để bộ phận **{tgt_name}** chuẩn bị và hỗ trợ đúng ý anh, anh giúp em thêm: {missing_str}.\n"
+                        f"Anh bổ sung hoặc chỉnh sửa giúp em nhé!"
                     )
                 else:
                     ctx.clarification_needed = (
-                        f"Sure! To help the {tgt_name} assist you better, could you please provide: {missing_str}?\n\n"
-                        f"Also, I drafted the opportunity details as follows:\n"
-                        f"- Title: {title_str}\n"
-                        f"- Description: {desc_str}\n"
-                        f"Please confirm or update!"
+                        f"Thanks — here's what I have so far for this opportunity:\n"
+                        f"{summary_block}\n\n"
+                        f"To help **{tgt_name}** prepare, please also share: {missing_str}."
                     )
                 ctx.opportunity_hint = target
             else:
@@ -260,7 +352,6 @@ def analyze_context_and_extract(
             if action == "ask_for_clarification":
                 ctx.clarification_needed = args.get("missing_info_question", "Could you provide more details?")
             else:
-                import json
                 payload = {
                     "added_tech_stack": args.get("added_tech_stack", []),
                     "added_experts": args.get("added_experts", [])

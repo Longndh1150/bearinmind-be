@@ -63,12 +63,15 @@ class ConversationContext(BaseModel):
     # When intent == clarify, the question the AI should ask back.
     clarification_needed: str | None = Field(
         default=None,
-        max_length=500,
+        max_length=2_000,
         description="Follow-up question for the user when the message is too vague.",
     )
 
     # Always carries the raw message so downstream tools can use it directly.
     raw_message: str = Field(min_length=1, max_length=20_000)
+
+    # True when this turn used ToolSendNotification (so chat_service can persist merged OpportunityExtract).
+    notification_flow: bool = False
 
 
 class SessionMeta(BaseModel):
@@ -91,6 +94,9 @@ class SessionMeta(BaseModel):
     # Danh sách các đơn vị đã được suggest trong session này (để lookup UUID khi user yêu cầu notification)
     # Lưu dạng list dict, ví dụ: [{"id": "...", "name": "DN1", "user_id": "head_user_id"}]
     suggested_units: list[dict] = Field(default_factory=list)
+
+    # US1: bản ghi nhận tạm OpportunityExtract khi đang thu thập đủ thông tin trước khi gửi notification
+    pending_notification_extract: dict | None = None
 
 
 __all__ = [

@@ -1,20 +1,18 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.ai.tools.vector_search import (
-    VectorSearchResult,
-    get_all_units,
-    get_unit_by_id,
     search_units,
 )
 from app.api.deps import require_active_user
 from app.db.session import get_session
-from app.models.unit import Unit
+from app.models.unit import Unit, UnitCaseStudy, UnitExpert
 from app.models.user import User
 from app.schemas.unit import (
     UnitCapabilities,
@@ -28,35 +26,9 @@ from app.schemas.unit import UnitCaseStudy as SchemaUnitCaseStudy
 from app.schemas.unit import UnitExpert as SchemaUnitExpert
 from app.services.case_study_client import get_case_studies
 from app.services.hrm_client import get_available_staff, get_unit_capacity
+from app.services.unit_vector_indexer import reindex_unit
 
 router = APIRouter(prefix="/units", tags=["units"])
-
-def _chroma_to_unit_public(result: VectorSearchResult) -> UnitPublic:
-    meta = result.metadata
-    tech_stack = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
-    
-    # Check if case_study_titles exist, they are stored joined by '|'
-    case_study_titles = meta.get("case_study_titles", "").split("|") if meta.get("case_study_titles") else []
-    case_studies = [SchemaUnitCaseStudy(title=t) for t in case_study_titles if t]
-    
-    return UnitPublic(
-        id=UUID(result.unit_id),
-        code="CHROMA",  # ChromaDB does not store unit codes
-        name=result.unit_name,
-        status="active",
-        contact=UnitContact(
-            name=meta.get("contact_name", "Unknown"),
-            email=meta.get("contact_email"),
-        ),
-        capabilities=UnitCapabilities(
-            tech_stack=tech_stack,
-            experts=[],  # ChromaDB does not store granular expert lists
-            case_studies=case_studies,
-            notes=result.document,
-        ),
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-    )
 
 def _to_unit_public(unit: Unit) -> UnitPublic:
     return UnitPublic(
@@ -80,28 +52,63 @@ def _to_unit_public(unit: Unit) -> UnitPublic:
         updated_at=unit.updated_at,
     )
 
-@router.get("", response_model=list[UnitPublic], summary="List units (from ChromaDB)")
+@router.get("", response_model=list[UnitPublic], summary="List units")
 async def list_units(
     query: str | None = None,
     limit: int = 10,
+    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> list[UnitPublic]:
     if query:
         chroma_units = search_units(query, top_k=limit)
+        if not chroma_units:
+            return []
+        
+        unit_ids = []
+        for u in chroma_units:
+            try:
+                unit_ids.append(UUID(u.unit_id))
+            except ValueError:
+                continue
+                
+        if not unit_ids:
+            return []
+
+        stmt = select(Unit).where(Unit.id.in_(unit_ids)).options(
+            selectinload(Unit.experts), 
+            selectinload(Unit.case_studies)
+        )
+        result = await session.execute(stmt)
+        
+        unit_map = {unit.id: unit for unit in result.scalars().all()}
+        
+        # return preserving chroma ranking
+        return [_to_unit_public(unit_map[uid]) for uid in unit_ids if uid in unit_map]
     else:
-        chroma_units = get_all_units()
-    return [_chroma_to_unit_public(u) for u in chroma_units]
+        stmt = select(Unit).options(
+            selectinload(Unit.experts), 
+            selectinload(Unit.case_studies)
+        ).limit(limit)
+        result = await session.execute(stmt)
+        return [_to_unit_public(u) for u in result.scalars().all()]
 
 
-@router.get("/{unit_id}", response_model=UnitPublic, summary="Get unit by id (from ChromaDB)")
+@router.get("/{unit_id}", response_model=UnitPublic, summary="Get unit by id")
 async def get_unit(
     unit_id: UUID, 
+    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitPublic:
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
-    return _chroma_to_unit_public(chroma_unit)
+    stmt = select(Unit).where(Unit.id == unit_id).options(
+        selectinload(Unit.experts), 
+        selectinload(Unit.case_studies)
+    )
+    result = await session.execute(stmt)
+    unit = result.scalars().first()
+    
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    return _to_unit_public(unit)
 
 
 @router.put("/{unit_id}/capabilities", response_model=UnitPublic, status_code=status.HTTP_200_OK, summary="Append to unit capabilities")
@@ -111,66 +118,61 @@ async def update_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user),
 ) -> UnitPublic:
-    # Truy vấn Chroma
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    # Query unit from PG
+    stmt = select(Unit).where(Unit.id == unit_id).options(
+        selectinload(Unit.experts), 
+        selectinload(Unit.case_studies)
+    )
+    result = await session.execute(stmt)
+    unit = result.scalars().first()
     
-    meta = chroma_unit.metadata
-    
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+        
     # Append tech stack
-    import json
-    existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
+    existing_tech = unit.tech_stack or []
     new_tech = [t for t in payload.tech_stack if t not in existing_tech]
-    merged_tech = existing_tech + new_tech
+    unit.tech_stack = existing_tech + new_tech
     
     # Append experts
-    experts_json_str = meta.get("experts_json", "[]")
-    try:
-        experts_list = json.loads(experts_json_str)
-    except Exception:
-        experts_list = []
-    existing_expert_names = {e.get("name") for e in experts_list}
+    existing_expert_names = {e.name for e in unit.experts}
     for ex in payload.experts:
         if ex.name not in existing_expert_names:
-            experts_list.append({"name": ex.name, "focus_areas": ex.focus_areas, "profile_url": str(ex.profile_url) if ex.profile_url else None})
+            new_exp = UnitExpert(
+                unit_id=unit.id, 
+                name=ex.name, 
+                focus_areas=ex.focus_areas, 
+                profile_url=str(ex.profile_url) if ex.profile_url else None
+            )
+            session.add(new_exp)
+            unit.experts.append(new_exp)
             
     # Append case studies
-    case_studies_json_str = meta.get("case_studies_json", "[]")
-    try:
-        case_studies_list = json.loads(case_studies_json_str)
-    except Exception:
-        case_studies_list = []
-    existing_cs_titles = {cs.get("title") for cs in case_studies_list}
+    existing_cs_titles = {cs.title for cs in unit.case_studies}
     for cs in payload.case_studies:
         if cs.title not in existing_cs_titles:
-            case_studies_list.append({"title": cs.title, "domain": cs.domain, "tech_stack": cs.tech_stack, "url": str(cs.url) if cs.url else None})
+            new_cs = UnitCaseStudy(
+                unit_id=unit.id,
+                title=cs.title,
+                domain=cs.domain,
+                tech_stack=cs.tech_stack,
+                url=str(cs.url) if cs.url else None
+            )
+            session.add(new_cs)
+            unit.case_studies.append(new_cs)
             
-    # Re-index to ChromaDB directly
-    from app.ai.tools.vector_search import index_unit
-    case_studies_text = " ".join([f"{cs.get('title')}. {cs.get('domain') or ''}" for cs in case_studies_list])
-    case_study_titles = [cs.get("title") for cs in case_studies_list]
+    await session.commit()
+    await session.refresh(unit)
     
-    index_unit(
-        unit_id=str(unit_id),
-        unit_name=meta.get("unit_name", "Unknown"),
-        tech_stack=merged_tech,
-        case_studies=case_studies_text,
-        case_study_titles=case_study_titles,
-        contact_name=meta.get("contact_name", ""),
-        contact_email=meta.get("contact_email", ""),
-        experts_json=json.dumps(experts_list),
-        case_studies_json=json.dumps(case_studies_list),
-    )
+    # Reindex to Chroma
+    await reindex_unit(str(unit_id), session=session)
     
     # Integrations
     await get_available_staff(str(unit_id))
     await get_unit_capacity(str(unit_id))
     await get_case_studies(str(unit_id))
     
-    # Re-fetch from ChromaDB after sync
-    updated_chroma_unit = get_unit_by_id(str(unit_id))
-    return _chroma_to_unit_public(updated_chroma_unit)
+    return _to_unit_public(unit)
 
 @router.delete("/{unit_id}/capabilities", status_code=status.HTTP_200_OK, summary="Clear particular or all capabilities")
 async def clear_capabilities(
@@ -179,44 +181,32 @@ async def clear_capabilities(
     session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ):
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    stmt = select(Unit).where(Unit.id == unit_id).options(
+        selectinload(Unit.experts), 
+        selectinload(Unit.case_studies)
+    )
+    result = await session.execute(stmt)
+    unit = result.scalars().first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
         
-    meta = chroma_unit.metadata
-    
-
-    from app.ai.tools.vector_search import index_unit
-    
     if tech_to_remove:
-        existing_tech = meta.get("tech_stack", "").split("|") if meta.get("tech_stack") else []
+        existing_tech = unit.tech_stack or []
         if tech_to_remove in existing_tech:
-            existing_tech = [t for t in existing_tech if t != tech_to_remove]
-        
-        index_unit(
-            unit_id=str(unit_id),
-            unit_name=meta.get("unit_name", "Unknown"),
-            tech_stack=existing_tech,
-            case_studies=chroma_unit.document,
-            case_study_titles=meta.get("case_study_titles", "").split("|") if meta.get("case_study_titles") else [],
-            contact_name=meta.get("contact_name", ""),
-            contact_email=meta.get("contact_email", ""),
-            experts_json=meta.get("experts_json", "[]"),
-            case_studies_json=meta.get("case_studies_json", "[]"),
-        )
+            unit.tech_stack = [t for t in existing_tech if t != tech_to_remove]
+            await session.commit()
+            await session.refresh(unit)
+            await reindex_unit(str(unit_id), session=session)
         msg = f"Capability '{tech_to_remove}' cleared"
     else:
-        index_unit(
-            unit_id=str(unit_id),
-            unit_name=meta.get("unit_name", "Unknown"),
-            tech_stack=[],
-            case_studies="",
-            case_study_titles=[],
-            contact_name=meta.get("contact_name", ""),
-            contact_email=meta.get("contact_email", ""),
-            experts_json="[]",
-            case_studies_json="[]",
-        )
+        unit.tech_stack = []
+        for exp in list(unit.experts):
+            await session.delete(exp)
+        for cs in list(unit.case_studies):
+            await session.delete(cs)
+        await session.commit()
+        await session.refresh(unit)
+        await reindex_unit(str(unit_id), session=session)
         msg = "Capabilities cleared completely"
     
     return {"message": msg, "unit_id": unit_id}
@@ -224,20 +214,16 @@ async def clear_capabilities(
 @router.get("/{unit_id}/staff/available", response_model=UnitStaffAvailability, summary="Get available staff and experts for a unit")
 async def get_unit_staff_availability(
     unit_id: UUID,
+    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitStaffAvailability:
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    stmt = select(Unit).where(Unit.id == unit_id).options(selectinload(Unit.experts))
+    result = await session.execute(stmt)
+    unit = result.scalars().first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
         
-    import json
-    experts_json_str = chroma_unit.metadata.get("experts_json", "[]")
-    
-    try:
-        experts_list = json.loads(experts_json_str)
-        experts = [SchemaUnitExpert(**e) for e in experts_list]
-    except Exception:
-        experts = []
+    experts = [SchemaUnitExpert(name=e.name, focus_areas=e.focus_areas or [], profile_url=e.profile_url) for e in unit.experts]
     
     # Get available staff from HRM
     hrm_staff = await get_available_staff(str(unit_id))
@@ -252,19 +238,16 @@ async def get_unit_staff_availability(
 @router.get("/{unit_id}/case-studies", response_model=UnitCaseStudiesResponse, summary="Get case studies for a unit")
 async def get_unit_case_studies_api(
     unit_id: UUID,
+    session: AsyncSession = Depends(get_session),
     _: User = Depends(require_active_user)
 ) -> UnitCaseStudiesResponse:
-    chroma_unit = get_unit_by_id(str(unit_id))
-    if not chroma_unit:
-        raise HTTPException(status_code=404, detail="Unit not found in ChromaDB")
+    stmt = select(Unit).where(Unit.id == unit_id).options(selectinload(Unit.case_studies))
+    result = await session.execute(stmt)
+    unit = result.scalars().first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
     
-    import json
-    case_studies_json_str = chroma_unit.metadata.get("case_studies_json", "[]")
-    try:
-        case_studies_list = json.loads(case_studies_json_str)
-        db_case_studies = [SchemaUnitCaseStudy(**cs) for cs in case_studies_list]
-    except Exception:
-        db_case_studies = []
+    db_case_studies = [SchemaUnitCaseStudy(title=cs.title, domain=cs.domain, tech_stack=cs.tech_stack or [], url=cs.url) for cs in unit.case_studies]
     
     # Fetch from external integration
     external_case_studies = await get_case_studies(str(unit_id))

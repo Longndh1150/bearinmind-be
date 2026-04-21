@@ -143,9 +143,27 @@ def index_unit(
     Called after Unit is created/updated in Postgres.
     case_study_titles: short display titles for each case study (for FE cards).
     """
+    
+    import json
+    experts_text = ""
+    if experts_json:
+        try:
+            experts_list = json.loads(experts_json)
+            expert_strs = []
+            for ex in experts_list:
+                name = ex.get("name", "")
+                areas = ", ".join(ex.get("focus_areas", []))
+                if areas:
+                    expert_strs.append(f"{name} ({areas})")
+                else:
+                    expert_strs.append(name)
+            experts_text = f" Experts: {', '.join(expert_strs)}."
+        except Exception:
+            pass
+
     document = (
         f"Unit: {unit_name}. "
-        f"Tech: {', '.join(tech_stack)}. "
+        f"Tech: {', '.join(tech_stack)}.{experts_text} "
         f"Case Studies: {case_studies}"
     )
     metadata: dict[str, str | list] = {

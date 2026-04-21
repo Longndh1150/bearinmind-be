@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Literal
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openrouter import ChatOpenRouter
@@ -23,8 +24,6 @@ from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguag
 from app.schemas.llm import OpportunityExtract
 
 logger = logging.getLogger(__name__)
-
-from typing import Literal
 
 # Maximum number of recent turns to include in history_summary
 _HISTORY_TURNS = 8

@@ -159,8 +159,8 @@ class ChatService:
         history: list[ChatMessage],
         session_meta: SessionMeta,
     ) -> ChatResponse:
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
         from langchain_openrouter import ChatOpenRouter
-        from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
         recent = history[-8:]
         msgs = []

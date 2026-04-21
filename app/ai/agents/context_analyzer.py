@@ -83,6 +83,40 @@ class ToolUpdateUnitCapabilities(BaseModel):
 _TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolQnA, ToolGeneralChat, ToolUpdateUnitCapabilities]
 
 
+def _looks_like_placeholder_expert(name: str) -> bool:
+    raw = (name or "").strip().lower()
+    if not raw:
+        return True
+    generic_markers = [
+        "chuyên gia",
+        "expert",
+        "kỹ sư",
+        "engineer",
+        "nhân sự",
+        "member",
+        "automation test",
+        "tester",
+        "qa",
+    ]
+    return any(m in raw for m in generic_markers)
+
+
+def _needs_capability_clarification(
+    added_tech_stack: list[str] | None,
+    added_experts: list[str] | None,
+) -> bool:
+    techs = [t for t in (added_tech_stack or []) if str(t).strip()]
+    experts = [e for e in (added_experts or []) if str(e).strip()]
+    if not experts:
+        return True
+    if any(_looks_like_placeholder_expert(e) for e in experts):
+        return True
+    # If user only provides a person name but no focus areas, keep asking to enrich capability quality.
+    if not techs:
+        return True
+    return False
+
+
 def _merge_opportunity_dicts(
     pending: dict | None,
     incoming: dict,
@@ -349,12 +383,28 @@ def analyze_context_and_extract(
         elif tool_name in ["ToolUpdateUnitCapabilities", "update_unit_capabilities"]:
             ctx.intent = ChatIntent.update_capabilities
             action = args.get("action")
-            if action == "ask_for_clarification":
+            added_tech_stack = args.get("added_tech_stack", [])
+            added_experts = args.get("added_experts", [])
+            must_clarify = _needs_capability_clarification(
+                added_tech_stack=added_tech_stack,
+                added_experts=added_experts,
+            )
+
+            if action == "ask_for_clarification" or must_clarify:
                 ctx.clarification_needed = args.get("missing_info_question", "Could you provide more details?")
+                if detected_lang == DetectedLanguage.vi and (
+                    not ctx.clarification_needed
+                    or ctx.clarification_needed == "Could you provide more details?"
+                ):
+                    ctx.clarification_needed = (
+                        "Dạ em đã ghi nhận nhu cầu cập nhật năng lực ạ. "
+                        "Anh cho em xin tên chuyên gia cụ thể và các mảng chuyên môn đi kèm "
+                        "(ví dụ: Performance, Security...) để em lưu chính xác nhé?"
+                    )
             else:
                 payload = {
-                    "added_tech_stack": args.get("added_tech_stack", []),
-                    "added_experts": args.get("added_experts", [])
+                    "added_tech_stack": added_tech_stack,
+                    "added_experts": added_experts
                 }
                 ctx.opportunity_hint = json.dumps(payload)
 

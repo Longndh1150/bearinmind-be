@@ -10,14 +10,19 @@ from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguag
 from app.services.unit_service import UnitService
 
 
-def _ctx(*, clarify: str | None = None, payload: str | None = None) -> ConversationContext:
+def _ctx(
+    *,
+    clarify: str | None = None,
+    payload: str | None = None,
+    raw_message: str = "test",
+) -> ConversationContext:
     return ConversationContext(
         intent=ChatIntent.update_capabilities,
         language=DetectedLanguage.vi,
         confidence=1.0,
         clarification_needed=clarify,
         opportunity_hint=payload,
-        raw_message="test",
+        raw_message=raw_message,
     )
 
 
@@ -103,3 +108,62 @@ async def test_us3_execute_update_merge_focus_for_existing_expert():
     assert existing_expert.focus_areas == ["Automation Test", "Performance"]
     assert session.add.call_count == 0
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_us3_execute_update_fallback_to_unit_code_when_email_not_matched():
+    no_unit_by_email = MagicMock()
+    no_unit_by_email.scalars.return_value.first.return_value = None
+
+    unit = SimpleNamespace(
+        id=uuid4(),
+        name="DN1",
+        code="DN1",
+        tech_stack=["Automation Test"],
+        capabilities_updated_at=None,
+    )
+    unit_by_code_result = MagicMock()
+    unit_by_code_result.scalars.return_value.first.return_value = unit
+
+    experts_result = MagicMock()
+    experts_result.scalars.return_value.all.return_value = []
+
+    session = AsyncMock()
+    session.execute = AsyncMock(
+        side_effect=[no_unit_by_email, unit_by_code_result, experts_result]
+    )
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    user = SimpleNamespace(email="unknown@rikkeisoft.com")
+    payload = '{"added_tech_stack":["Performance"],"added_experts":["Lê Đức Thắng"]}'
+    ctx = _ctx(payload=payload, raw_message="Cập nhật giúp em cho đơn vị DN1")
+
+    res = await UnitService.handle_update_capabilities(
+        session, ctx, uuid4(), "Cập nhật DN1", user
+    )
+
+    assert "thành công" in res.answer.lower()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_us3_execute_update_no_unit_mapping_asks_unit_code():
+    no_unit_by_email = MagicMock()
+    no_unit_by_email.scalars.return_value.first.return_value = None
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[no_unit_by_email])
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    user = SimpleNamespace(email="unknown@rikkeisoft.com")
+    payload = '{"added_tech_stack":["Performance"],"added_experts":["Lê Đức Thắng"]}'
+    ctx = _ctx(payload=payload, raw_message="Cập nhật năng lực giúp em")
+
+    res = await UnitService.handle_update_capabilities(
+        session, ctx, uuid4(), "Cập nhật năng lực", user
+    )
+
+    assert "mã đơn vị" in res.answer.lower()
+    session.commit.assert_not_awaited()

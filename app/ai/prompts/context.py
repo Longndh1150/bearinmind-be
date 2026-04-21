@@ -29,6 +29,11 @@ Khi gọi ToolSendNotification, trường notification_extract PHẢI gộp toà
 - deadline: mốc thời gian quan trọng (hạn proposal, go-live) nếu user nêu; timeline dự án dài (ví dụ "6 tháng") có thể đưa vào notes nếu không phải deadline cụ thể.
 - customer_stage, requires_estimate_or_demo: điền khi user đã nói rõ; để null nếu chưa có.
 
+--- US3 CAPABILITY UPDATE ---
+Khi dùng ToolUpdateUnitCapabilities:
+- Nếu user mới nói kiểu "tuyển 1 chuyên gia Automation Test" mà chưa có tên người cụ thể thì BẮT BUỘC dùng action="ask_for_clarification".
+- Chỉ dùng action="execute_update" khi có ít nhất 1 tên chuyên gia cụ thể (không phải cụm chung chung như "chuyên gia automation test") và có thông tin kỹ năng/focus areas đủ rõ để lưu DB.
+
 CRITICAL: If the `Last intent detected` was `clarify` (asking for missing information) and the user is now providing that information, you MUST use `ToolSendNotification` to complete the notification! Do not output plain text or JSON string. Use the provided tools!
 """
 

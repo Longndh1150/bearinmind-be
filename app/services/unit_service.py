@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -29,6 +30,13 @@ def _normalize_text_list(values: list[str] | None) -> list[str]:
         seen.add(key)
         out.append(val)
     return out
+
+
+def _extract_unit_codes(text: str | None) -> list[str]:
+    if not text:
+        return []
+    # Supports patterns like DN1, D5, G10, HU1, HM1.
+    return list({m.upper() for m in re.findall(r"\b(?:DN|D|G|HU|HM)\d+\b", text, flags=re.IGNORECASE)})
 
 
 class UnitService:
@@ -75,7 +83,28 @@ class UnitService:
         db_unit = unit_rs.scalars().first()
 
         if not db_unit:
-            answer = "Xin lỗi, em không tìm thấy đơn vị nào mà anh đang quản lý (contact_email không khớp)." if ctx.language == DetectedLanguage.vi else "Sorry, I could not find a unit associated with your account."
+            candidate_codes = _extract_unit_codes(message) + _extract_unit_codes(ctx.raw_message)
+            for code in dict.fromkeys(candidate_codes):
+                unit_by_code_rs = await session.execute(
+                    select(Unit).where(
+                        func.upper(Unit.code) == code
+                    )
+                )
+                db_unit = unit_by_code_rs.scalars().first()
+                if db_unit:
+                    break
+
+        if not db_unit:
+            if ctx.language == DetectedLanguage.vi:
+                answer = (
+                    "Dạ em chưa xác định được đơn vị anh đang phụ trách từ tài khoản hiện tại. "
+                    "Anh cho em xin mã đơn vị (ví dụ: DN1, D5, G10) để em cập nhật năng lực chính xác nhé."
+                )
+            else:
+                answer = (
+                    "I could not determine your unit from the current account. "
+                    "Please provide your unit code (e.g. DN1, D5, G10) so I can update capabilities accurately."
+                )
             return ChatResponse(conversation_id=conv_id, answer=answer, suggested_actions=[])
 
         # Append tech stack (case-insensitive de-dup)

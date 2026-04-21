@@ -57,7 +57,7 @@ otification_service.create(...)) để tạo thông báo thực sự lưu vào D
 > - Có cần DN1 làm estimate sơ bộ hoặc demo hệ thống luôn không ạ?"
 
 **5. Sales trả lời:**
-> "Deadline nộp proposal là thứ Sáu tuần sau nha. Khách hàng đã có requirement sơ bộ rồi, cần gửi estimate và chuẩn bị 1 buổi demo hệ thống."
+> "Deadline nộp proposal là thứ Sáu tuần sau nha. Khách hàng đã có requirement sơ bộ rồi, cần gửi estimate và chuẩn bị 1 buổi demo hệ thống. Hãy thông báo tới DN1 hộ tôi nhé Gấu"
 
 **6. Gấu trả lời:**
 > "Dạ vâng, em đã cập nhật và gửi thông báo kết nối cơ hội AEON tới DN1, đính kèm đầy đủ yêu cầu estimate và chuẩn bị demo cho deadline thứ Sáu tuần sau rồi ạ. Gấu chúc dự án thành công chốt được deal bự nha! 🐻✨"

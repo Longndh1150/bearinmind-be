@@ -1,8 +1,9 @@
 import json
 import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.unit import Unit, UnitExpert
@@ -11,6 +12,24 @@ from app.schemas.chat import ChatResponse
 from app.schemas.context import ConversationContext, DetectedLanguage
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_text_list(values: list[str] | None) -> list[str]:
+    if not values:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        val = (raw or "").strip()
+        if not val:
+            continue
+        key = val.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(val)
+    return out
+
 
 class UnitService:
     @staticmethod
@@ -41,39 +60,69 @@ class UnitService:
         except Exception as e:
             logger.warning(f"Could not parse opportunity_hint payload: {e}")
 
-        added_tech_stack = payload.get("added_tech_stack") or []
-        added_experts = payload.get("added_experts") or []
+        added_tech_stack = _normalize_text_list(payload.get("added_tech_stack") or [])
+        added_experts = _normalize_text_list(payload.get("added_experts") or [])
 
         if not added_tech_stack and not added_experts:
             answer = "Em không tìm thấy thông tin mới nào để thêm vào Dữ liệu năng lực ạ." if ctx.language == DetectedLanguage.vi else "No new capabilities provided to update."
             return ChatResponse(conversation_id=conv_id, answer=answer, suggested_actions=[])
 
         # Query DB to find the Unit corresponding to the user 
-        user_email = user.email.lower() if user.email else ""
-        unit_rs = await session.execute(select(Unit).where(Unit.contact_email == user_email))
+        user_email = (user.email or "").strip().lower()
+        unit_rs = await session.execute(
+            select(Unit).where(func.lower(Unit.contact_email) == user_email)
+        )
         db_unit = unit_rs.scalars().first()
 
         if not db_unit:
             answer = "Xin lỗi, em không tìm thấy đơn vị nào mà anh đang quản lý (contact_email không khớp)." if ctx.language == DetectedLanguage.vi else "Sorry, I could not find a unit associated with your account."
             return ChatResponse(conversation_id=conv_id, answer=answer, suggested_actions=[])
 
-        # Append tech stack
+        # Append tech stack (case-insensitive de-dup)
         if added_tech_stack:
-            current_tech = list(db_unit.tech_stack) if db_unit.tech_stack else []
+            current_tech = _normalize_text_list(list(db_unit.tech_stack) if db_unit.tech_stack else [])
+            existing_tech_keys = {tech.casefold() for tech in current_tech}
             for tech in added_tech_stack:
-                if tech not in current_tech:
+                key = tech.casefold()
+                if key not in existing_tech_keys:
                     current_tech.append(tech)
+                    existing_tech_keys.add(key)
             db_unit.tech_stack = current_tech
             
-        # Append experts
+        # Append experts: avoid duplicate names and merge focus areas when expert already exists.
         if added_experts:
+            expert_rs = await session.execute(
+                select(UnitExpert).where(UnitExpert.unit_id == db_unit.id)
+            )
+            existing_experts = list(expert_rs.scalars().all())
+            existing_by_name = {
+                (exp.name or "").strip().casefold(): exp for exp in existing_experts if exp.name
+            }
+
             for exp_name in added_experts:
+                key = exp_name.casefold()
+                matched = existing_by_name.get(key)
+                if matched:
+                    merged_focus = _normalize_text_list(
+                        list(matched.focus_areas) if matched.focus_areas else []
+                    )
+                    focus_keys = {tech.casefold() for tech in merged_focus}
+                    for tech in added_tech_stack:
+                        if tech.casefold() not in focus_keys:
+                            merged_focus.append(tech)
+                            focus_keys.add(tech.casefold())
+                    matched.focus_areas = merged_focus
+                    continue
+
                 new_expert = UnitExpert(
                     unit_id=db_unit.id,
                     name=exp_name,
-                    focus_areas=added_tech_stack
+                    focus_areas=added_tech_stack or None,
                 )
                 session.add(new_expert)
+                existing_by_name[key] = new_expert
+
+        db_unit.capabilities_updated_at = datetime.now(UTC)
                 
         await session.commit()
         logger.info(f"Updated unit '{db_unit.name}' with techs: {added_tech_stack} and experts: {added_experts}")

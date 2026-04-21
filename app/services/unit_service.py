@@ -32,6 +32,20 @@ def _normalize_text_list(values: list[str] | None) -> list[str]:
     return out
 
 
+def _coerce_text_list(value: list[str] | str | None, *, split_csv: bool) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return _normalize_text_list(value)
+    raw = str(value).strip()
+    if not raw:
+        return []
+    if split_csv:
+        parts = [p.strip() for p in raw.split(",")]
+        return _normalize_text_list(parts)
+    return _normalize_text_list([raw])
+
+
 def _extract_unit_codes(text: str | None) -> list[str]:
     if not text:
         return []
@@ -68,8 +82,14 @@ class UnitService:
         except Exception as e:
             logger.warning(f"Could not parse opportunity_hint payload: {e}")
 
-        added_tech_stack = _normalize_text_list(payload.get("added_tech_stack") or [])
-        added_experts = _normalize_text_list(payload.get("added_experts") or [])
+        added_tech_stack = _coerce_text_list(
+            payload.get("added_tech_stack"),
+            split_csv=True,
+        )
+        added_experts = _coerce_text_list(
+            payload.get("added_experts"),
+            split_csv=True,
+        )
 
         if not added_tech_stack and not added_experts:
             answer = "Em không tìm thấy thông tin mới nào để thêm vào Dữ liệu năng lực ạ." if ctx.language == DetectedLanguage.vi else "No new capabilities provided to update."

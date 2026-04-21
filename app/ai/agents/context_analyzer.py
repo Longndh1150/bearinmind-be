@@ -76,8 +76,8 @@ class ToolUpdateUnitCapabilities(BaseModel):
     language: DetectedLanguage = Field(description="Detected language of the user message.")
     action: Literal["ask_for_clarification", "execute_update"] = Field(description="If the user hasn't provided enough info, ask for clarification.")
     missing_info_question: str | None = Field(description="The actual question to ask if action is 'ask_for_clarification'. Reply in appropriate language.", default=None)
-    added_tech_stack: list[str] | None = Field(description="List of new technical skills to add (if any).", default=None)
-    added_experts: list[str] | None = Field(description="List of new expert names to add (if any).", default=None)
+    added_tech_stack: list[str] | str | None = Field(description="List of new technical skills to add (if any).", default=None)
+    added_experts: list[str] | str | None = Field(description="List of new expert names to add (if any).", default=None)
 
 # We bind these tools to the LLM. OpenRouter/Langchain will map the JSON response to one of these schemas.
 _TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolQnA, ToolGeneralChat, ToolUpdateUnitCapabilities]
@@ -102,11 +102,22 @@ def _looks_like_placeholder_expert(name: str) -> bool:
 
 
 def _needs_capability_clarification(
-    added_tech_stack: list[str] | None,
-    added_experts: list[str] | None,
+    added_tech_stack: list[str] | str | None,
+    added_experts: list[str] | str | None,
 ) -> bool:
-    techs = [t for t in (added_tech_stack or []) if str(t).strip()]
-    experts = [e for e in (added_experts or []) if str(e).strip()]
+    def _to_list(value: list[str] | str | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        raw = str(value).strip()
+        if not raw:
+            return []
+        parts = [p.strip() for p in raw.split(",")]
+        return [p for p in parts if p]
+
+    techs = _to_list(added_tech_stack)
+    experts = _to_list(added_experts)
     if not experts:
         return True
     if any(_looks_like_placeholder_expert(e) for e in experts):
@@ -383,11 +394,11 @@ def analyze_context_and_extract(
         elif tool_name in ["ToolUpdateUnitCapabilities", "update_unit_capabilities"]:
             ctx.intent = ChatIntent.update_capabilities
             action = args.get("action")
-            added_tech_stack = args.get("added_tech_stack", [])
-            added_experts = args.get("added_experts", [])
+            raw_added_tech_stack = args.get("added_tech_stack", [])
+            raw_added_experts = args.get("added_experts", [])
             must_clarify = _needs_capability_clarification(
-                added_tech_stack=added_tech_stack,
-                added_experts=added_experts,
+                added_tech_stack=raw_added_tech_stack,
+                added_experts=raw_added_experts,
             )
 
             if action == "ask_for_clarification" or must_clarify:
@@ -402,9 +413,19 @@ def analyze_context_and_extract(
                         "(ví dụ: Performance, Security...) để em lưu chính xác nhé?"
                     )
             else:
+                def _to_list(value: list[str] | str | None) -> list[str]:
+                    if value is None:
+                        return []
+                    if isinstance(value, list):
+                        return [str(v).strip() for v in value if str(v).strip()]
+                    raw = str(value).strip()
+                    if not raw:
+                        return []
+                    return [p.strip() for p in raw.split(",") if p.strip()]
+
                 payload = {
-                    "added_tech_stack": added_tech_stack,
-                    "added_experts": added_experts
+                    "added_tech_stack": _to_list(raw_added_tech_stack),
+                    "added_experts": _to_list(raw_added_experts),
                 }
                 ctx.opportunity_hint = json.dumps(payload)
 

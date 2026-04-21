@@ -111,6 +111,44 @@ async def test_us3_execute_update_merge_focus_for_existing_expert():
 
 
 @pytest.mark.asyncio
+async def test_us3_execute_update_accepts_string_payload_without_character_split():
+    unit = SimpleNamespace(
+        id=uuid4(),
+        name="D5",
+        code="D5",
+        tech_stack=["Python"],
+        capabilities_updated_at=None,
+    )
+    unit_result = MagicMock()
+    unit_result.scalars.return_value.first.return_value = unit
+
+    experts_result = MagicMock()
+    experts_result.scalars.return_value.all.return_value = []
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[unit_result, experts_result])
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+
+    user = SimpleNamespace(email="minhln@rikkeisoft.com")
+    payload = (
+        '{"added_tech_stack":"Automation Test, Performance, Security",'
+        '"added_experts":"Lê Đức Thắng"}'
+    )
+    ctx = _ctx(payload=payload, raw_message="D5")
+
+    res = await UnitService.handle_update_capabilities(session, ctx, uuid4(), "D5", user)
+
+    assert "thành công" in res.answer.lower()
+    assert set(unit.tech_stack) == {"Python", "Automation Test", "Performance", "Security"}
+    assert session.add.call_count == 1
+    inserted_expert = session.add.call_args[0][0]
+    assert inserted_expert.name == "Lê Đức Thắng"
+    assert inserted_expert.focus_areas == ["Automation Test", "Performance", "Security"]
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_us3_execute_update_fallback_to_unit_code_when_email_not_matched():
     no_unit_by_email = MagicMock()
     no_unit_by_email.scalars.return_value.first.return_value = None

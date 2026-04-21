@@ -23,7 +23,7 @@ from app.schemas.chat import (
 )
 from app.schemas.context import ChatIntent, ConversationContext, DetectedLanguage, SessionMeta
 from app.schemas.llm import OpportunityExtract
-from app.services.update_capabilities_service import handle_update_capabilities
+from app.services.unit_service import UnitService
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +148,59 @@ class ChatService:
         return ChatResponse(
             conversation_id=conv_id,
             answer=question,
+            suggested_actions=[],
+        )
+
+    @staticmethod
+    async def _handle_qna(
+        ctx: ConversationContext,
+        conv_id: UUID,
+        message: str,
+        history: list[ChatMessage],
+        session_meta: SessionMeta,
+    ) -> ChatResponse:
+        from langchain_openrouter import ChatOpenRouter
+        from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+
+        recent = history[-8:]
+        msgs = []
+        
+        # System context including the Persona
+        sys_msg = (
+            "Bạn là Gấu Núi (thường gọi là Gấu), một trợ lý ảo thân thiện giúp kết nối Sales với các đơn vị sản xuất (Unit) tại Rikkeisoft.\n"
+            "Luôn xưng 'em' và gọi người dùng là 'anh/chị' (mặc định là anh).\n"
+            "Chức năng của bạn bây giờ là trả lời các câu hỏi của người dùng về kết quả match, tại sao lại match với unit đó, giải thích về mặt kỹ thuật, hoặc giải thích các kỹ năng liên quan đến cơ hội dự án, một cách tự nhiên như trò chuyện bình thường.\n"
+            "Dựa vào lịch sử trò chuyện và context hiện tại, hãy cung cấp câu trả lời rõ ràng, logic và dễ hiểu.\n"
+        )
+        
+        if session_meta and getattr(session_meta, "suggested_units", None):
+            sys_msg += f"\nNgữ cảnh về các unit đã được gợi ý trong session: {session_meta.suggested_units}\n"
+            
+        msgs.append(SystemMessage(content=sys_msg))
+        
+        for m in recent:
+            if m.role == "user":
+                msgs.append(HumanMessage(content=m.content))
+            elif m.role == "assistant":
+                msgs.append(AIMessage(content=m.content))
+                
+        msgs.append(HumanMessage(content=message))
+
+        kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
+        if settings.llm_base_url:
+            kwargs["base_url"] = settings.llm_base_url
+            
+        client = ChatOpenRouter(**kwargs, model=settings.llm_model_secondary, max_tokens=1024)
+        try:
+            res = await client.ainvoke(msgs)
+            answer = getattr(res, "content", "Xin lỗi, em không thể trả lời câu hỏi này lúc này.")
+        except Exception as e:
+            logger.error(f"QnA LLM call failed: {e}")
+            answer = "Dạ, hệ thống em đang gặp chút sự cố khi xử lý câu hỏi này, anh vui lòng thử lại sau nhé."
+
+        return ChatResponse(
+            conversation_id=conv_id,
+            answer=answer,
             suggested_actions=[],
         )
 
@@ -551,7 +604,7 @@ class ChatService:
                     response = response.model_copy(update={"context": ctx})
 
                 elif intent == ChatIntent.update_capabilities:
-                    response = await handle_update_capabilities(ctx, conv_id, message)
+                    response = await UnitService.handle_update_capabilities(session, ctx, conv_id, message, user)
                     response = response.model_copy(update={"context": ctx})
 
                 elif intent == ChatIntent.chitchat:
@@ -560,6 +613,16 @@ class ChatService:
 
                 elif intent == ChatIntent.clarify:
                     response = ChatService._handle_clarify(ctx, conv_id)
+                    response = response.model_copy(update={"context": ctx})
+
+                elif intent == ChatIntent.qna:
+                    response = await ChatService._handle_qna(
+                        ctx=ctx,
+                        conv_id=conv_id,
+                        message=message,
+                        history=history,
+                        session_meta=session_meta
+                    )
                     response = response.model_copy(update={"context": ctx})
 
                 else:

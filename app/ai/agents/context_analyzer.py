@@ -24,6 +24,8 @@ from app.schemas.llm import OpportunityExtract
 
 logger = logging.getLogger(__name__)
 
+from typing import Literal
+
 # Maximum number of recent turns to include in history_summary
 _HISTORY_TURNS = 8
 
@@ -58,12 +60,26 @@ class ToolClarify(BaseModel):
         description="A short explanation of what is missing or ambiguous."
     )
 
+class ToolQnA(BaseModel):
+    """Call this tool when the user asks a follow-up question about the matches or a technical concept."""
+    language: DetectedLanguage = Field(description="Detected language of the user message.")
+
 class ToolGeneralChat(BaseModel):
     """Call this tool for greetings, complaints, small talk, or out-of-scope questions."""
     language: DetectedLanguage = Field(description="Detected language of the user message.")
 
+class ToolUpdateUnitCapabilities(BaseModel):
+    """Use this tool when the user (a unit leader) wants to update, add, or record experts, skills, or tech stack for their unit.
+    If the user has not provided enough information (e.g., skill name but no expert name), use 'ask_for_clarification' and provide the follow-up question in the same language.
+    If all information is gathered, use 'execute_update'. Analyze the conversation history closely to determine the action."""
+    language: DetectedLanguage = Field(description="Detected language of the user message.")
+    action: Literal["ask_for_clarification", "execute_update"] = Field(description="If the user hasn't provided enough info, ask for clarification.")
+    missing_info_question: str | None = Field(description="The actual question to ask if action is 'ask_for_clarification'. Reply in appropriate language.", default=None)
+    added_tech_stack: list[str] | None = Field(description="List of new technical skills to add (if any).", default=None)
+    added_experts: list[str] | None = Field(description="List of new expert names to add (if any).", default=None)
+
 # We bind these tools to the LLM. OpenRouter/Langchain will map the JSON response to one of these schemas.
-_TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolGeneralChat]
+_TOOLS = [ToolFindUnits, ToolSaveDraft, ToolSendNotification, ToolClarify, ToolQnA, ToolGeneralChat, ToolUpdateUnitCapabilities]
 
 def _llm_client() -> ChatOpenRouter:
     kwargs: dict = {"api_key": settings.llm_api_key or "no-key"}
@@ -238,6 +254,22 @@ def analyze_context_and_extract(
         elif tool_name in ["ToolClarify", "clarify"]:
             ctx.intent = ChatIntent.clarify
             ctx.clarification_needed = args.get("clarification_needed", "Could not understand.")
+            
+        elif tool_name in ["ToolUpdateUnitCapabilities", "update_unit_capabilities"]:
+            ctx.intent = ChatIntent.update_capabilities
+            action = args.get("action")
+            if action == "ask_for_clarification":
+                ctx.clarification_needed = args.get("missing_info_question", "Could you provide more details?")
+            else:
+                import json
+                payload = {
+                    "added_tech_stack": args.get("added_tech_stack", []),
+                    "added_experts": args.get("added_experts", [])
+                }
+                ctx.opportunity_hint = json.dumps(payload)
+
+        elif tool_name in ["ToolQnA", "qna"]:
+            ctx.intent = ChatIntent.qna
             
         elif tool_name in ["ToolGeneralChat", "general_chat"]:
             ctx.intent = ChatIntent.unknown

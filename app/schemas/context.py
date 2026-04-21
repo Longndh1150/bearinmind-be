@@ -25,6 +25,8 @@ class ChatIntent(StrEnum):
     chitchat = "chitchat"
     # message too vague; AI should ask a follow-up question
     clarify = "clarify"
+    # user asks a conversational question, e.g. explanation of matches, tech questions
+    qna = "qna"
     # none of the above; safe fallback
     unknown = "unknown"
 
